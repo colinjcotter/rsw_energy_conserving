@@ -104,4 +104,60 @@ u1 = Function(V).assign(u0)
 D0 = Function(Q).assign(D0)
 
 U = Function(W)
+X = TestFunctions(W)
 
+us = [u0] + fd.split(U)[::2]
+Ds = [D0] + fd.split(U)[1::2]
+Us = [u0, D0] + fd.split(U)
+
+Pk = []
+
+if args.time_degree == 1:
+    Pk_nodes = [0., 1.]
+elif args.time_degree == 2:
+    Pk_nodes = [0., 0.5, 1.]
+else:
+    raise NotImplementedError
+
+def make_lagrange(nodes):
+    polys = []
+    for i in range(args.time_degree+1):
+        roots = []
+        for j in range(args.time_degree+1):
+            if i==j:
+                continue
+            roots.append(nodes[j])
+        polys.append(np.poly(roots))
+
+Pk_basis = make_lagrange(Pk_nodes)
+
+if args.time_degree == 1:
+    Pkm1_nodes = [0.5]
+elif args.time_degree == 2:
+    Pkm1_nodes = [0., 1.]
+else:
+    raise NotImplementedError
+
+Pkm1_basis = make_lagrange(Pkm1_nodes)
+
+Pk_basis_d = []
+for i in range(args.time_degree):
+    Pk_basis_d.append(np.polyder(Pk_basis[i]))
+Pkm1_basis_d = []
+for i in range(args.time_degree-1):
+    Pkm1_basis_d.append(np.polyder(Pkm1_basis[i]))
+
+# need to make these the correct degree
+degree = 5 # fixme
+quad_points, quad_weights = np.polynomial.legendre.leggauss(degree)
+
+# solution at quadrature points
+
+u_quad = []
+D_quad = []
+for q in quad_points:
+    uval = None
+    for j in range(args.time_degree):
+        if not uval:
+            uval = Pk_basis[j](q)*us[j]
+        u_quad.append(uval)
