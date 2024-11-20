@@ -237,11 +237,11 @@ PD = []
 for i in range(args.time_degree):
     for j in range(args.time_degree+1):
         if len(Pu) < i+1:
-            Pu.append(Proj[i,j]*us[j])
-            PD.append(Proj[i,j]*Ds[j])
+            Pu.append(fd.Constant(Proj[i,j])*us[j])
+            PD.append(fd.Constant(Proj[i,j])*Ds[j])
         else:
-            Pu[i] += Proj[i,j]*us[j]
-            PD[i] += Proj[i,j]*Ds[j]
+            Pu[i] += fd.Constant(Proj[i,j])*us[j]
+            PD[i] += fd.Constant(Proj[i,j])*Ds[j]
 
 # time projection of u and D at quadrature points
 # (plus gamma at quad points)
@@ -279,18 +279,18 @@ R = f = 2*Omega*fd.as_vector([0, 0, x[2]])
 def u_op(v, u, D, gamma):
     F = D*(u+R)
     eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(u)))), F)*dx
-    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(u))), avg(F))*dS
-    eqn -= fd.div(v)*inner(F, u)*dx
-    eqn += fd.div(u)*inner(F, v)*dx
-    eqn -= gamma*v*dx
+    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(u))), fd.avg(F))*dS
+    eqn -= fd.div(v)*fd.inner(F, u)*dx
+    eqn += fd.div(u)*fd.inner(F, v)*dx
+    eqn -= fd.inner(gamma,v)*dx
     return eqn
 
 def F_op(v, u, D, F):
     return fd.inner(F - D*(u + R), v)*dx
 
 def gamma_op(v, u, D, gamma):
-    eqn = fd.div(v)*(inner(u, u)/2 + inner(R, u) - g*D)*dx
-    eqn -= inner(gamma, v)*dx
+    eqn = fd.div(v)*(fd.inner(u, u)/2 + fd.inner(R, u) - g*D)*dx
+    eqn -= fd.inner(gamma, v)*dx
     return eqn
 
 def D_op(phi, F):
@@ -314,5 +314,5 @@ for qi, q in enumerate(quad_points):
     eqn += weight*gamma_op(wgamma_quad[qi], u_quad[qi],
                            D_quad[qi], gamma_quad[qi])
     # D equation
-    eqn += weight*(dDdt_quad[qi] + fd.div(F_quad[qi]))*phi_quad[qi]
+    eqn += weight*(dDdt_quad[qi] + fd.div(F_quad[qi]))*phi_quad[qi]*fd.dx
 
