@@ -61,7 +61,7 @@ Q = fd.FunctionSpace(mesh, "DG", degree)
 if args.time_degree == 1:
     W = V*V*V*Q
 elif args.time_degree == 2:
-    W + V*V*V*Q*V*V*V*Q
+    W = V*V*V*Q*V*V*V*Q
 else:
     raise NotImplementedError
 
@@ -120,11 +120,15 @@ def make_lagrange(nodes):
     polys = []
     for i in range(imax):
         roots = []
+        numerator = np.poly1d(1)
+        denominator = 1
         for j in range(imax):
             if i==j:
                 continue
             roots.append(nodes[j])
-        polys.append(np.poly1d(roots, r=True))
+            numerator *= np.poly1d([1, -nodes[j]]) 
+            denominator *= (nodes[i] - nodes[j])
+        polys.append(numerator / denominator)
     return polys
 
 Pk_basis = make_lagrange(Pk_nodes)
