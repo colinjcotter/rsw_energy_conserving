@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description='Energy conserving SWE on the spher
 parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
 parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
 parser.add_argument('--dumpt', type=float, default=86400, help='Dump time in seconds. Default 86400 (24 hours).')
-parser.add_argument('--dt', type=float, default=3600, help='Timestep in seconds. Default 1.')
+parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
 parser.add_argument('--coords_degree', type=int, default=1, help='Degree of polynomials for sphere mesh approximation.')
 parser.add_argument('--degree', type=int, default=1, help='Degree of finite element space (the DG space).')
 parser.add_argument('--show_args', action='store_true', help='Output all the arguments.')
@@ -65,7 +65,7 @@ elif args.time_degree == 2:
 else:
     raise NotImplementedError
 
-dt = args.dt
+dt = args.tmax/args.nsteps
 dT = fd.Constant(dt)
 
 Omega = fd.Constant(7.292e-5)  # rotation rate
@@ -307,10 +307,10 @@ for qi, q in enumerate(quad_points):
     # u equation
     if not eqn:
         fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
-        eqn = weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
-    eqn += weight*fd.inner(dDdt_quad[qi]*(u_quad[qi] + R), wu_quad[qi])*dx
-    eqn += weight*u_op(wu_quad[qi], Pu_quad[qi],
-                       D_quad[qi], gamma_quad[qi])
+        eqn = dT*weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
+    eqn += dT*weight*fd.inner(dDdt_quad[qi]*(u_quad[qi] + R), wu_quad[qi])*dx
+    eqn += dT*weight*u_op(wu_quad[qi], Pu_quad[qi],
+                          D_quad[qi], gamma_quad[qi])
     # F equation
     eqn += weight*F_op(wF_quad[qi], Pu_quad[qi],
                        D_quad[qi], F_quad[qi])
@@ -318,5 +318,4 @@ for qi, q in enumerate(quad_points):
     eqn += weight*gamma_op(wgamma_quad[qi], u_quad[qi],
                            D_quad[qi], gamma_quad[qi])
     # D equation
-    eqn += weight*(dDdt_quad[qi] + fd.div(F_quad[qi]))*phi_quad[qi]*fd.dx
-
+    eqn += weight*(dDdt_quad[qi] + dT*fd.div(F_quad[qi]))*phi_quad[qi]*dx
