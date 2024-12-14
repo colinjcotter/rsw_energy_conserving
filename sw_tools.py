@@ -120,15 +120,13 @@ def make_lagrange(nodes):
     polys = []
     for i in range(imax):
         roots = []
-        numerator = np.poly1d(1)
-        denominator = 1
         for j in range(imax):
             if i==j:
                 continue
             roots.append(nodes[j])
-            numerator *= np.poly1d([1, -nodes[j]]) 
-            denominator *= (nodes[i] - nodes[j])
-        polys.append(numerator / denominator)
+        poly = np.poly1d(roots), r=True)
+        poly /= poly(1.)
+        polys.append(poly)
     return polys
 
 Pk_basis = make_lagrange(Pk_nodes)
