@@ -1,26 +1,20 @@
 from sw_tools import *
+from petsc4py import PETSc
 
+print = PETSc.Sys.Print
 problem = fd.NonlinearVariationalProblem(eqn, U)
-initial_solver_parameters = {"ksp_type": "preonly",
-                             "pc_type": "lu",
-                             "pc_factor_mat_solver_type": "mumps",
-                             "snes_monitor": None,
-                             "snes_type": "ksponly"}
 
 sparameters = {
-    "snes_monitor": None,
     "snes_converged_reason": None,
     "snes_atol": 1e-50,
     "snes_stol": 1e-50,
-    # "snes_max_it": 1,
-    # "snes_convergence_test": "skip",
-    #"snes_lag_jacobian": -2,
-    #"snes_lag_jacobian_persists": None,
-    "ksp_monitor": None,
+    "snes_atol": 1.0e-8,
+    "snes_max_it": 10,
+    "ksp_converged_reason": None,
     "ksp_converged_rate": None,
-    # "ksp_view": None,
     "ksp_type": "gmres",
-    "ksp_rtol": 1e-3,
+    "ksp_atol": 1.0e-50,
+    "ksp_rtol": 1e-6,
     "ksp_max_it": 30,
     "pc_type": "python",
     "pc_python_type": "firedrake.PatchPC",
@@ -37,25 +31,29 @@ sparameters = {
     "patch_sub_pc_factor_shift_type": "nonzero"
 }
 
-solver = fd.NonlinearVariationalSolver(problem,
-                                       solver_parameters = sparameters)
+solver_parameters = sparameters
 
-dT.assign(0.)
-solver.solve()
-dT.assign(dt)
-
-solver_parameters = {"ksp_type": "preonly",
-                     "pc_type": "lu",
-                     "pc_factor_mat_solver_type": "mumps",
-                     "snes_monitor": None}
 solver = fd.NonlinearVariationalSolver(problem,
                                        solver_parameters = solver_parameters)
 
+# initial guess
+Us = U.subfunctions
+for i in range(args.time_degree-1):
+    Us[4*i].assign(u0)
+    Us[4*i+1].assign(F0)
+    Us[4*i+2].assign(D0)
 
-for step in ProgressBar("Timestep").iter(range(args.nsteps)):
+dT.assign(dt)
+print(f"dt = {dt}")
+
+for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
+    for i in range(args.time_degree-1):
+        Us[4*i].assign(u0)
+        Us[4*i+1].assign(F0)
+        Us[4*i+2].assign(D0)
+    
     solver.solve()
 
-    u0.assign(fd.split(U)[::4][-1])
-    F0.assign(fd.split(U)[1::4][-1])
-    D0.assign(fd.split(U)[3::4][-1])
-
+    u0.assign(Us[::4][-1])
+    F0.assign(Us[1::4][-1])
+    D0.assign(Us[3::4][-1])
