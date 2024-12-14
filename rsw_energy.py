@@ -4,18 +4,7 @@ from petsc4py import PETSc
 print = PETSc.Sys.Print
 problem = fd.NonlinearVariationalProblem(eqn, U)
 
-sparameters = {
-    "snes_converged_reason": None,
-    "snes_atol": 1e-50,
-    "snes_stol": 1e-50,
-    "snes_atol": 1.0e-8,
-    "snes_max_it": 10,
-    "ksp_converged_reason": None,
-    "ksp_converged_rate": None,
-    "ksp_type": "gmres",
-    "ksp_atol": 1.0e-50,
-    "ksp_rtol": 1e-6,
-    "ksp_max_it": 30,
+patch = {
     "pc_type": "python",
     "pc_python_type": "firedrake.PatchPC",
     "patch_pc_patch_save_operators": True,
@@ -28,8 +17,37 @@ sparameters = {
     "patch_pc_patch_symmetrise_sweep": False,
     "patch_sub_ksp_type": "preonly",
     "patch_sub_pc_type": "lu",
-    "patch_sub_pc_factor_shift_type": "nonzero"
+    #"patch_sub_pc_factor_shift_type": "nonzero"
 }
+
+sparameters = {
+    "snes_converged_reason": None,
+    "snes_monitor": None,
+    "snes_atol": 1e-50,
+    "snes_stol": 1e-50,
+    "snes_rtol": 1.0e-10,
+    "snes_max_it": 10,
+    "ksp_converged_reason": None,
+    "ksp_monitor": None,
+    #"ksp_converged_rate": None,
+    "ksp_type": "gmres",
+    "ksp_atol": 1.0e-50,
+    "ksp_rtol": 1e-10,
+    "ksp_max_it": 30,
+    "pc_type": "ksp",
+    "ksp_ksp_type": "richardson",
+    "ksp_max_it": 3,
+    "ksp" : patch
+}
+
+luparams = {
+    "snes_atol": 1.0e-50,
+    "snes_stol": 1.0e-50,
+    "snes_rtol": 1.0e-8,
+    "ksp_type": "preonly",
+    "pc_type": "lu",
+    "pc_factor_mat_solver_type": "mumps"
+    }
 
 solver_parameters = sparameters
 
