@@ -17,6 +17,7 @@ parser.add_argument('--show_args', action='store_true', help='Output all the arg
 parser.add_argument('--filename', type=str, default='w5')
 parser.add_argument('--time_degree', type=int, default=1, help='Degree of polynomials in time.')
 parser.add_argument('--bdfm', action='store_true', help='Use the BDFM space.')
+parser.add_argument('--centred', action='store_true', help='If present, use the centred scheme for velocity advection in the curl term, otherwise use the upwind scheme.')
 
 args = parser.parse_known_args()
 args = args[0]
@@ -124,8 +125,8 @@ def make_lagrange(nodes):
             if i==j:
                 continue
             roots.append(nodes[j])
-        poly = np.poly1d(roots), r=True)
-        poly /= poly(1.)
+        poly = np.poly1d(roots, r=True)
+        poly /= poly(nodes[i])
         polys.append(poly)
     return polys
 
@@ -150,6 +151,8 @@ for i in range(args.time_degree):
 # need to make these the correct degree
 degree = 5 # fixme
 quad_points, quad_weights = np.polynomial.legendre.leggauss(degree)
+quad_points = 0.5 + quad_points/2
+quad_weights /= np.sum(quad_weights)
 
 # solution at quadrature points
 u_quad = []
@@ -275,24 +278,25 @@ def both(u):
 
 dS = fd.dS
 
-R = f = 2*Omega*fd.as_vector([0, 0, x[2]])
+R = 2*Omega*fd.as_vector([0, 0, x[2]])
 
 # build the equations
-def u_op(v, u, D, gamma):
-    F = D*(u+R)
+def u_op(v, u, F, D, gamma):
+    Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
+    Upwind = 0.5
     eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(u)))), F)*dx
-    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(u))), fd.avg(F))*dS
-    eqn -= fd.div(v)*fd.inner(F, u)*dx
-    eqn += fd.div(u)*fd.inner(F, v)*dx
-    eqn -= fd.inner(gamma,v)*dx
+    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(u))), both(Upwind*F))*dS
+    eqn += fd.div(v)*fd.inner(F, u)*dx
+    eqn -= fd.div(u)*fd.inner(F, v)*dx
+    eqn += fd.inner(gamma,v)*dx
     return eqn
 
 def F_op(v, u, D, F):
     return fd.inner(F - D*(u + R), v)*dx
 
 def gamma_op(v, u, D, gamma):
-    eqn = fd.div(v)*(fd.inner(u, u)/2 + fd.inner(R, u) - g*D)*dx
-    eqn -= fd.inner(gamma, v)*dx
+    eqn = -fd.div(v)*(fd.inner(u, u)/2 + fd.inner(R, u) - g*(D+b))*dx
+    eqn += fd.inner(gamma, v)*dx
     return eqn
 
 def D_op(phi, F):
@@ -300,14 +304,14 @@ def D_op(phi, F):
 
 # build the time integral
 eqn = None
-for qi, q in enumerate(quad_points):
-    weight = quad_weights[qi]
+for qi, weight in enumerate(quad_weights):
     # u equation
     if not eqn:
-        fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
         eqn = dT*weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
+    else:
+        eqn += dT*weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
     eqn += dT*weight*fd.inner(dDdt_quad[qi]*(u_quad[qi] + R), wu_quad[qi])*dx
-    eqn += dT*weight*u_op(wu_quad[qi], Pu_quad[qi],
+    eqn += dT*weight*u_op(wu_quad[qi], Pu_quad[qi], F_quad[qi],
                           D_quad[qi], gamma_quad[qi])
     # F equation
     eqn += weight*F_op(wF_quad[qi], Pu_quad[qi],
