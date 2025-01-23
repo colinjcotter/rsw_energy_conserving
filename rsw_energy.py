@@ -17,7 +17,7 @@ patch = {
     "patch_pc_patch_symmetrise_sweep": False,
     "patch_sub_ksp_type": "preonly",
     "patch_sub_pc_type": "lu",
-    #"patch_sub_pc_factor_shift_type": "nonzero"
+    "patch_sub_pc_factor_shift_type": "nonzero"
 }
 
 sparameters = {

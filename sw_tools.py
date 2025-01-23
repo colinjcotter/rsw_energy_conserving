@@ -281,18 +281,19 @@ dS = fd.dS
 R = 2*Omega*fd.as_vector([0, 0, x[2]])
 
 # build the equations
-def u_op(v, u, F, D, gamma):
-    Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
+def u_op(v, u, Pu, D, gamma):
+    F = D*(u + R)
+    Upwind = 0.5 * (fd.sign(fd.dot(Pu, n)) + 1)
     Upwind = 0.5
-    eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(u)))), F)*dx
-    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(u))), both(Upwind*F))*dS
-    eqn += fd.div(v)*fd.inner(F, u)*dx
-    eqn -= fd.div(u)*fd.inner(F, v)*dx
+    eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), F)*dx
+    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*F))*dS
+    eqn += fd.div(v)*fd.inner(F, Pu)*dx
+    eqn -= fd.div(Pu)*fd.inner(F, v)*dx
     eqn += fd.inner(gamma,v)*dx
     return eqn
 
 def F_op(v, u, D, F):
-    return fd.inner(F - D*(u + R), v)*dx
+    return fd.inner(F - D*u, v)*dx
 
 def gamma_op(v, u, D, gamma):
     eqn = -fd.div(v)*(fd.inner(u, u)/2 + fd.inner(R, u) - g*(D+b))*dx
@@ -311,7 +312,7 @@ for qi, weight in enumerate(quad_weights):
     else:
         eqn += dT*weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
     eqn += dT*weight*fd.inner(dDdt_quad[qi]*(u_quad[qi] + R), wu_quad[qi])*dx
-    eqn += dT*weight*u_op(wu_quad[qi], Pu_quad[qi], F_quad[qi],
+    eqn += dT*weight*u_op(wu_quad[qi], u_quad[qi], Pu_quad[qi],
                           D_quad[qi], gamma_quad[qi])
     # F equation
     eqn += weight*F_op(wF_quad[qi], Pu_quad[qi],
