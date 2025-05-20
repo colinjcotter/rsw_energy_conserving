@@ -132,14 +132,12 @@ def both(u):
 dS = fd.dS
 
 # build the equations
-def u_op(v, u, Pu, D, gamma):
-    F = D*(u + R)
-    Upwind = 0.5 * (fd.sign(fd.dot(Pu, n)) + 1)
-    eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), F)*dx
-    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*F))*dS
-    eqn += fd.div(v)*fd.inner(F, Pu)*dx
-    eqn -= fd.div(Pu)*fd.inner(F, v)*dx
-    eqn += fd.inner(gamma,v)*dx
+def u_op(v, m, u, Pu, D, gamma):
+    Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
+    eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), m)*dx
+    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
+    eqn += fd.div(v)*fd.inner(m, Pu)*dx
+    eqn -= fd.div(Pu)*fd.inner(m, v)*dx
     return eqn
 
 def F_op(v, u, D, F):
@@ -154,16 +152,21 @@ du, dF, dgamma, dm, dv, dD = fd.TestFunctions(W)
 
 # build the equations
 # projection of u
-eqn = inner(Dt(v) - u, dv)*dx
+eqn = inner(Dt(v),dv)*dx
+eqn -=  inner(u, dv)*dx
 # m projection of dl/du
-eqn += inner(Dt(m) - Dt(D*(u + R)), dm)*dx
+eqn += inner(Dt(m),dm)*dx
+eqn -= inner(Dt(D*(u + R)), dm)*dx
 # momentum equation
-eqn += inner(Dt(m), du)*dx + u_op(du, u, Dt(v), D, gamma)
+eqn += inner(Dt(m), du)*dx
+eqn += u_op(du, m, u, Dt(v), D, gamma)
+eqn += fd.inner(gamma,du)*dx
 # F equation
-eqn += inner(Dt(F - u*D), dF)*dx
+eqn += inner(Dt(F), dF)*dx
+eqn -= inner(Dt(u*D), dF)*dx
 # gamma equation
 eqn += inner(Dt(gamma), dgamma)*dx
-#eqn -= div(dgamma)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
+eqn -= div(dgamma)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
 # D equation
-eqn += Dt(D)*dD*dx - D_op(dD, F)
-
+eqn += Dt(D)*dD*dx
+eqn -= D_op(dD, F)
