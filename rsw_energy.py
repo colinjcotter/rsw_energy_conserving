@@ -25,7 +25,7 @@ sparameters = {
     "snes_monitor": None,
     "snes_atol": 1e-50,
     "snes_stol": 1e-50,
-    "snes_rtol": 1.0e-10,
+    "snes_rtol": 1.0e-8,
     "snes_max_it": 10,
     "ksp_converged_reason": None,
     "ksp_monitor": None,
@@ -41,14 +41,15 @@ sparameters = {
 }
 
 lu_parameters = {
-    'snes_monitor': None,
-    'ksp_monitor': None,
+    #'snes_monitor': None,
+    #'ksp_monitor': None,
+    'snes_rtol': 1e-8,
     'ksp_type': 'gmres',
     'pc_type': 'lu',
     'pc_factor_mat_solver_type': 'mumps'
 }
 
-solver_parameters = sparameters
+solver_parameters = lu_parameters
 
 stages = 1
 
@@ -56,23 +57,29 @@ ufc_line = ufc_simplex(1)
 quadrature = make_quadrature(ufc_line, 2)
 
 stepper = GalerkinTimeStepper(eqn, stages, t, dT, U,
-                              #quadrature=quadrature,
+                              quadrature=quadrature,
                               solver_parameters=solver_parameters)
 
 Us = U.subfunctions
 stagess = stepper.stages.subfunctions
-count = 0
-for stage in range(stages):
-    for dim in range(6):
-        stagess[count].assign(Us[dim])
-        count += 1
 
 t0 = 0.
 print(f"Dt = {dt}")
 
-for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
-    stepper.advance()
+u, F, gamma, m, v, D = fd.split(U)
+energy = (D*inner(u,u)/2 + g*D**2/2)*dx
+energy0 = fd.assemble(energy)
 
+for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
+    count = 0
+    for stage in range(stages):
+        for dim in range(6):
+            stagess[count].assign(Us[dim])
+            count += 1
+    
+    stepper.advance()
+    print(fd.assemble(energy)-energy0)
+    
     t0 += dt
     t.assign(t0)
     

@@ -166,7 +166,7 @@ eqn += inner(Dt(F), dF)*dx
 eqn -= inner(Dt(u*D), dF)*dx
 # gamma equation
 eqn += inner(Dt(gamma), dgamma)*dx
-eqn -= div(dgamma)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
+eqn += div(dgamma)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
 # D equation
 eqn += Dt(D)*dD*dx
 eqn -= D_op(dD, F)
