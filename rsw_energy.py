@@ -40,16 +40,26 @@ sparameters = {
     "ksp" : patch
 }
 
-solver_parameters = sparameters
+lu_parameters = {
+    'snes_monitor': None,
+    'ksp_monitor': None,
+    'ksp_type': 'gmres',
+    'pc_type': 'lu',
+    'pc_factor_mat_solver_type': 'mumps'
+}
+
+solver_parameters = lu_parameters
 
 ufc_line = ufc_simplex(1)
 quadrature = make_quadrature(ufc_line, 2)
 
 stepper = GalerkinTimeStepper(eqn, 1, t, dT, U,
                               quadrature=quadrature,
-                              solver_parameters=sparameters)
+                              solver_parameters=solver_parameters)
 
 t0 = 0.
+print(f"Dt = {dt}")
+
 for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     stepper.advance()
 

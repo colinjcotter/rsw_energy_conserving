@@ -63,11 +63,13 @@ Q = fd.FunctionSpace(mesh, "DG", degree)
 W = V * V * V * V * V * Q
 
 dt = args.tmax/args.nsteps
-dT = MeshConstant(dt)
-t = MeshConstant(0.)
 
-Omega = MeshConstant(7.292e-5)  # rotation rate
-g = MeshConstant(9.8)  # Gravitational constant
+MC = MeshConstant(mesh)
+dT = MC.Constant(dt)
+t = MC.Constant(0.)
+
+Omega = MC.Constant(7.292e-5)  # rotation rate
+g = MC.Constant(9.8)  # Gravitational constant
 b = fd.Function(Q, name="Topography")
 
 def Williamson5InitialConditions():
@@ -100,9 +102,13 @@ D0 = fd.Function(Q).assign(D0)
 F0 = fd.Function(V).project(u0*D0)
 m0 = fd.Function(V).project(D0*(u0+R))
 gamma0 = fd.Function(V)
-w = TestFunction(V)
+w = fd.TestFunction(V)
 
-fd.solve(w*gamma0*dx - div(w)*(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx,
+inner = fd.inner; div = fd.div
+dx = fd.dx
+
+fd.solve(inner(w,gamma0)*dx - div(w)*(inner(u0, u0)/2 +
+                                      inner(R, u0) - g*(D0+b))*dx == 0,
          gamma0)
 
 U = fd.Function(W)
@@ -111,14 +117,13 @@ U = fd.Function(W)
 u, F, gamma, m, v, D = U.subfunctions
 u.assign(u0)
 F.assign(F0)
-gamma.assign(gamm0)
+gamma.assign(gamma0)
 m.assign(m0)
 v.assign(0.)
 D.assign(D0)
 
 X = fd.TestFunction(W)
 
-dx = fd.dx
 n = fd.FacetNormal(mesh)
 
 def both(u):
@@ -130,7 +135,6 @@ dS = fd.dS
 def u_op(v, u, Pu, D, gamma):
     F = D*(u + R)
     Upwind = 0.5 * (fd.sign(fd.dot(Pu, n)) + 1)
-    Upwind = 0.5
     eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), F)*dx
     eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*F))*dS
     eqn += fd.div(v)*fd.inner(F, Pu)*dx
@@ -145,11 +149,10 @@ def D_op(phi, F):
     return fd.div(F)*phi*dx
 
 # u, F, gamma, m, v, D
-u, F, gamma, m, v, D = split(U)
-du, dF, dgamma, dm, dv, dD = TestFunctions(W)
+u, F, gamma, m, v, D = fd.split(U)
+du, dF, dgamma, dm, dv, dD = fd.TestFunctions(W)
 
 # build the equations
-inner = fd.inner, div = fd.div
 # projection of u
 eqn = inner(Dt(v) - u, dv)*dx
 # m projection of dl/du
@@ -160,7 +163,7 @@ eqn += inner(Dt(m), du)*dx + u_op(du, u, Dt(v), D, gamma)
 eqn += inner(Dt(F - u*D), dF)*dx
 # gamma equation
 eqn += inner(Dt(gamma), dgamma)*dx
-eqn -= div(v)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
+#eqn -= div(dgamma)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
 # D equation
 eqn += Dt(D)*dD*dx - D_op(dD, F)
 
