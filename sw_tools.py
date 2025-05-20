@@ -2,6 +2,7 @@ import firedrake as fd
 #get command arguments
 from petsc4py import PETSc
 from firedrake.__future__ import interpolate
+from irksome import Dt, MeshConstant, TimeStepper, GalerkinTimeStepper
 
 import argparse
 import numpy as np
@@ -58,19 +59,15 @@ else:
 V = fd.FunctionSpace(mesh, family, degree+1)
 Q = fd.FunctionSpace(mesh, "DG", degree)
 
-# u, F, gamma, D
-if args.time_degree == 1:
-    W = V*V*V*Q
-elif args.time_degree == 2:
-    W = V*V*V*Q*V*V*V*Q
-else:
-    raise NotImplementedError
+# u, F, gamma, m, v, D
+W = V * V * V * V * V * Q
 
 dt = args.tmax/args.nsteps
-dT = fd.Constant(dt)
+dT = MeshConstant(dt)
+t = MeshConstant(0.)
 
-Omega = fd.Constant(7.292e-5)  # rotation rate
-g = fd.Constant(9.8)  # Gravitational constant
+Omega = MeshConstant(7.292e-5)  # rotation rate
+g = MeshConstant(9.8)  # Gravitational constant
 b = fd.Function(Q, name="Topography")
 
 def Williamson5InitialConditions():
@@ -97,178 +94,29 @@ def Williamson5InitialConditions():
     return un, Dn, bn
 
 u0, D0, b = Williamson5InitialConditions()
+R = 2*Omega*fd.as_vector([0, 0, x[2]])
 u1 = fd.Function(V).assign(u0)
 D0 = fd.Function(Q).assign(D0)
 F0 = fd.Function(V).project(u0*D0)
+m0 = fd.Function(V).project(D0*(u0+R))
+gamma0 = fd.Function(V)
+w = TestFunction(V)
+
+fd.solve(w*gamma0*dx - div(w)*(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx,
+         gamma0)
 
 U = fd.Function(W)
+
+# u, F, gamma, m, v, D
+u, F, gamma, m, v, D = U.subfunctions
+u.assign(u0)
+F.assign(F0)
+gamma.assign(gamm0)
+m.assign(m0)
+v.assign(0.)
+D.assign(D0)
+
 X = fd.TestFunction(W)
-
-us = (u0,) + fd.split(U)[::4]
-Fs = (F0,) + fd.split(U)[1::4]
-gammas = fd.split(U)[2::4]
-Ds = (D0,) + fd.split(U)[3::4]
-
-if args.time_degree == 1:
-    Pk_nodes = [0., 1.]
-elif args.time_degree == 2:
-    Pk_nodes = [0., 0.5, 1.]
-else:
-    raise NotImplementedError
-
-def make_lagrange(nodes):
-    imax = len(nodes)
-    polys = []
-    for i in range(imax):
-        roots = []
-        for j in range(imax):
-            if i==j:
-                continue
-            roots.append(nodes[j])
-        poly = np.poly1d(roots, r=True)
-        poly /= poly(nodes[i])
-        polys.append(poly)
-    return polys
-
-Pk_basis = make_lagrange(Pk_nodes)
-
-if args.time_degree == 1:
-    Pkm1_nodes = [0.5]
-elif args.time_degree == 2:
-    Pkm1_nodes = [0., 1.]
-else:
-    raise NotImplementedError
-
-Pkm1_basis = make_lagrange(Pkm1_nodes)
-
-Pk_basis_d = []
-for i in range(args.time_degree+1):
-    Pk_basis_d.append(np.polyder(Pk_basis[i]))
-Pkm1_basis_d = []
-for i in range(args.time_degree):
-    Pkm1_basis_d.append(np.polyder(Pkm1_basis[i]))
-
-# need to make these the correct degree
-degree = 5 # fixme
-quad_points, quad_weights = np.polynomial.legendre.leggauss(degree)
-quad_points = 0.5 + quad_points/2
-quad_weights /= np.sum(quad_weights)
-
-# solution at quadrature points
-u_quad = []
-D_quad = []
-F_quad = []
-for q in quad_points:
-    uval = None
-    Dval = None
-    Fval = None
-    for j in range(args.time_degree+1):
-        if not uval:
-            uval = fd.Constant(Pk_basis[j](q))*us[j]
-            Dval = fd.Constant(Pk_basis[j](q))*Ds[j]
-            Fval = fd.Constant(Pk_basis[j](q))*Fs[j]
-        else:
-            uval += fd.Constant(Pk_basis[j](q))*us[j]
-            Dval += fd.Constant(Pk_basis[j](q))*Ds[j]
-            Fval += fd.Constant(Pk_basis[j](q))*Fs[j]
-        u_quad.append(uval)
-        D_quad.append(Dval)
-        F_quad.append(Fval)
-        
-# time derivative of solution at quadrature points
-dudt_quad = []
-dDdt_quad = []
-for q in quad_points:
-    uval = None
-    Dval = None
-    for j in range(args.time_degree+1):
-        if not uval:
-            uval = fd.Constant(Pk_basis[j](q))*us[j]
-            Dval = fd.Constant(Pk_basis[j](q))*Ds[j]
-        else:
-            uval += fd.Constant(Pk_basis_d[j](q))*us[j]
-            Dval += fd.Constant(Pk_basis_d[j](q))*Ds[j]
-        dudt_quad.append(uval)
-        dDdt_quad.append(Dval)
-
-# test functions at quadrature points
-wus = fd.split(X)[::4]
-wFs = fd.split(X)[1::4]
-wgammas = fd.split(X)[2::4]
-phis = fd.split(X)[3::4]
-wu_quad = []
-wF_quad = []
-wgamma_quad = []
-phi_quad = []
-for q in quad_points:
-    wuval = None
-    wFval = None
-    wgammaval = None
-    phival = None
-    for j in range(args.time_degree):
-        if not wuval:
-            wuval = fd.Constant(Pkm1_basis[j](q))*wus[j]
-            wFval = fd.Constant(Pkm1_basis[j](q))*wFs[j]
-            wgammaval = fd.Constant(Pkm1_basis[j](q))*wgammas[j]
-            phival = fd.Constant(Pkm1_basis[j](q))*phis[j]
-        else:
-            wuval += fd.Constant(Pkm1_basis[j](q))*wus[j]
-            wFval += fd.Constant(Pkm1_basis[j](q))*wFs[j]
-            wgammaval += fd.Constant(Pkm1_basis[j](q))*wgammas[j]
-            phival += fd.Constant(Pkm1_basis[j](q))*phis[j]
-        wu_quad.append(wuval)
-        wF_quad.append(wFval)
-        wgamma_quad.append(wgammaval)
-        phi_quad.append(phival)
-# time projection operators
-A = np.zeros((args.time_degree, args.time_degree))
-B = np.zeros((args.time_degree, args.time_degree+1))
-
-for qi, q in enumerate(quad_points):
-    weight = quad_weights[qi]
-    for i in range(args.time_degree):
-        Pival = fd.Constant(Pkm1_basis[i](q))
-        for j in range(args.time_degree):
-            A[i,j] += weight*Pival*fd.Constant(Pkm1_basis[j](q))
-        for j in range(args.time_degree+1):
-            B[i,j] += weight*Pival*fd.Constant(Pk_basis[j](q))
-
-# projection operator
-Proj = np.linalg.solve(A, B)
-            
-# time projection of u and D at Pkm1 nodes
-Pu = []
-PD = []
-for i in range(args.time_degree):
-    for j in range(args.time_degree+1):
-        if len(Pu) < i+1:
-            Pu.append(fd.Constant(Proj[i,j])*us[j])
-            PD.append(fd.Constant(Proj[i,j])*Ds[j])
-        else:
-            Pu[i] += fd.Constant(Proj[i,j])*us[j]
-            PD[i] += fd.Constant(Proj[i,j])*Ds[j]
-
-# time projection of u and D at quadrature points
-# (plus gamma at quad points)
-Pu_quad = []
-PD_quad = []
-gamma_quad = []
-for q in quad_points:
-    uval = None
-    Dval = None
-    gval = None
-    for j in range(args.time_degree):
-        if not uval:
-            uval = fd.Constant(Pkm1_basis[j](q))*Pu[j]
-            Dval = fd.Constant(Pkm1_basis[j](q))*PD[j]
-            gval = fd.Constant(Pkm1_basis[j](q))*gammas[j]
-        else:
-            uval += fd.Constant(Pkm1_basis[j](q))*Pu[j]
-            Dval += fd.Constant(Pkm1_basis[j](q))*PD[j]
-            gval += fd.Constant(Pkm1_basis[j](q))*gammas[j]
-    Pu_quad.append(uval)
-    PD_quad.append(Dval)
-    gamma_quad.append(gval)
 
 dx = fd.dx
 n = fd.FacetNormal(mesh)
@@ -277,8 +125,6 @@ def both(u):
     return 2*fd.avg(u)
 
 dS = fd.dS
-
-R = 2*Omega*fd.as_vector([0, 0, x[2]])
 
 # build the equations
 def u_op(v, u, Pu, D, gamma):
@@ -295,30 +141,26 @@ def u_op(v, u, Pu, D, gamma):
 def F_op(v, u, D, F):
     return fd.inner(F - D*u, v)*dx
 
-def gamma_op(v, u, D, gamma):
-    eqn = -fd.div(v)*(fd.inner(u, u)/2 + fd.inner(R, u) - g*(D+b))*dx
-    eqn += fd.inner(gamma, v)*dx
-    return eqn
-
 def D_op(phi, F):
     return fd.div(F)*phi*dx
 
-# build the time integral
-eqn = None
-for qi, weight in enumerate(quad_weights):
-    # u equation
-    if not eqn:
-        eqn = dT*weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
-    else:
-        eqn += dT*weight*fd.inner(D_quad[qi]*dudt_quad[qi], wu_quad[qi])*dx
-    eqn += dT*weight*fd.inner(dDdt_quad[qi]*(u_quad[qi] + R), wu_quad[qi])*dx
-    eqn += dT*weight*u_op(wu_quad[qi], u_quad[qi], Pu_quad[qi],
-                          D_quad[qi], gamma_quad[qi])
-    # F equation
-    eqn += weight*F_op(wF_quad[qi], Pu_quad[qi],
-                       D_quad[qi], F_quad[qi])
-    # gamma equation
-    eqn += weight*gamma_op(wgamma_quad[qi], u_quad[qi],
-                           D_quad[qi], gamma_quad[qi])
-    # D equation
-    eqn += weight*(dDdt_quad[qi] + dT*fd.div(F_quad[qi]))*phi_quad[qi]*dx
+# u, F, gamma, m, v, D
+u, F, gamma, m, v, D = split(U)
+du, dF, dgamma, dm, dv, dD = TestFunctions(W)
+
+# build the equations
+inner = fd.inner, div = fd.div
+# projection of u
+eqn = inner(Dt(v) - u, dv)*dx
+# m projection of dl/du
+eqn += inner(Dt(m) - Dt(D*(u + R)), dm)*dx
+# momentum equation
+eqn += inner(Dt(m), du)*dx + u_op(du, u, Dt(v), D, gamma)
+# F equation
+eqn += inner(Dt(F - u*D), dF)*dx
+# gamma equation
+eqn += inner(Dt(gamma), dgamma)*dx
+eqn -= div(v)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
+# D equation
+eqn += Dt(D)*dD*dx - D_op(dD, F)
+

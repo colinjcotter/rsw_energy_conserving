@@ -1,8 +1,8 @@
 from sw_tools import *
 from petsc4py import PETSc
+from FIAT import ufc_simplex, make_quadrature
 
 print = PETSc.Sys.Print
-problem = fd.NonlinearVariationalProblem(eqn, U)
 
 patch = {
     "pc_type": "python",
@@ -40,38 +40,20 @@ sparameters = {
     "ksp" : patch
 }
 
-luparams = {
-    "snes_atol": 1.0e-50,
-    "snes_stol": 1.0e-50,
-    "snes_rtol": 1.0e-8,
-    "ksp_type": "preonly",
-    "pc_type": "lu",
-    "pc_factor_mat_solver_type": "mumps"
-    }
-
 solver_parameters = sparameters
 
-solver = fd.NonlinearVariationalSolver(problem,
-                                       solver_parameters = solver_parameters)
+ufc_line = ufc_simplex(1)
+quadrature = make_quadrature(ufc_line, 2)
 
-# initial guess
-Us = U.subfunctions
-for i in range(args.time_degree-1):
-    Us[4*i].assign(u0)
-    Us[4*i+1].assign(F0)
-    Us[4*i+2].assign(D0)
+stepper = GalerkinTimeStepper(eqn, 1, t, dT, U,
+                              quadrature=quadrature,
+                              solver_parameters=sparameters)
 
-dT.assign(dt)
-print(f"dt = {dt}")
-
+t0 = 0.
 for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
-    for i in range(args.time_degree-1):
-        Us[4*i].assign(u0)
-        Us[4*i+1].assign(F0)
-        Us[4*i+2].assign(D0)
-    
-    solver.solve()
+    stepper.advance()
 
-    u0.assign(Us[::4][-1])
-    F0.assign(Us[1::4][-1])
-    D0.assign(Us[3::4][-1])
+    t0 += dt
+    t.assign(t0)
+    
+    print(t)
