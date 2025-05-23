@@ -132,7 +132,12 @@ def both(u):
 dS = fd.dS
 
 # build the equations
+<<<<<<< Updated upstream
 def u_op(v, m, u, Pu, D, gamma):
+    if args.centred:
+        Upwind = 0.5
+    else:
+        Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
     Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
     eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), m)*dx
     eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
