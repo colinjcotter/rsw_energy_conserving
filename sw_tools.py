@@ -10,7 +10,7 @@ import numpy as np
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
 parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
 parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
-parser.add_argument('--ndumps', type=float, default=10, help='Timesteps per dump. Default 10.')
+parser.add_argument('--ndumps', type=int, default=10, help='Timesteps per dump. Default 10.')
 parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
 parser.add_argument('--coords_degree', type=int, default=1, help='Degree of polynomials for sphere mesh approximation.')
 parser.add_argument('--degree', type=int, default=1, help='Degree of finite element space (the DG space).')
@@ -48,6 +48,8 @@ outward_normals = fd.CellNormal(mesh)
 
 def perp(u):
     return fd.cross(outward_normals, u)
+
+assert args.coords_degree == 1, "Need to fix formulation for higher order cells"
 
 degree = args.degree
 if args.bdfm:
@@ -106,16 +108,16 @@ w = fd.TestFunction(V)
 inner = fd.inner; div = fd.div
 dx = fd.dx
 
-fd.solve(inner(w,gamma0)*dx - div(w)*(inner(u0, u0)/2 +
-                                      inner(R, u0) - g*(D0+b))*dx == 0,
-         gamma0)
+#fd.solve(inner(w,gamma0)*dx - div(w)*(inner(u0, u0)/2 +
+#                                      inner(R, u0) - g*(D0+b))*dx == 0,
+#         gamma0)
 
 U = fd.Function(W)
 
 # u, F, gamma, m, v, D
 u, F, gamma, m, v, D = U.subfunctions
 u.assign(u0)
-F.assign(F0)
+#F.assign(F0)
 gamma.assign(gamma0)
 m.assign(m0)
 v.assign(0.)
@@ -135,13 +137,13 @@ def u_op(v, m, u, Pu, D):
     eqn = fd.div(v)*fd.inner(m, Pu)*dx
     eqn -= fd.div(Pu)*fd.inner(m, v)*dx
 
-        if args.centred:
+    if args.centred:
         Upwind = 0.5
     else:
         Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
     Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
     eqn -= fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), m)*dx
-    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
+    eqn += fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
     return eqn
 
 # u, F, gamma, m, v, D
@@ -156,15 +158,15 @@ eqn -= inner(u, dv)*dx
 eqn += inner(Dt(m - D*(u + R)), dm)*dx
 # momentum equation
 eqn += inner(Dt(m), du)*dx
-#eqn += u_op(du, m, u, Dt(v), D)
-eqn += fd.inner(gamma,du)*dx
+eqn += u_op(du, m, u, Dt(v), D)
+eqn += fd.inner(Dt(gamma),du)*dx
 # F equation
-eqn += inner(F+ Dt(v)*D, dF)*dx
+eqn += inner(Dt(F) - Dt(v)*D, dF)*dx
 # gamma equation
-eqn += inner(gamma, dgamma)*dx
+eqn += inner(Dt(gamma), dgamma)*dx
 eqn -= div(dgamma)*(
     inner(u, u)/2
     + inner(R, u)
     - g*(D+b))*dx
 # D equation
-eqn += (Dt(D) + div(F))*dD*dx
+eqn += (Dt(D) + div(Dt(F)))*dD*dx

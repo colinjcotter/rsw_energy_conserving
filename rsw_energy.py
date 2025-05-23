@@ -60,7 +60,8 @@ quadrature = make_quadrature(ufc_line, 5)
 
 stepper = GalerkinTimeStepper(eqn, stages, t, dT, U,
                               quadrature=quadrature,
-                              solver_parameters=solver_parameters)
+                              solver_parameters=solver_parameters,
+                              options_prefix="rsw")
 
 Us = U.subfunctions
 stagess = stepper.stages.subfunctions
@@ -84,7 +85,8 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
             count += 1
     
     stepper.advance()
-    print(f'\n{fd.assemble(energy)-energy0}')
+    denergy = (fd.assemble(energy)-energy0)/energy0
+    print(f'\n{denergy}')
     
     t0 += dt
     t.assign(t0)
