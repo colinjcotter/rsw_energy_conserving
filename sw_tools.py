@@ -10,7 +10,7 @@ import numpy as np
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
 parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
 parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
-parser.add_argument('--dumpt', type=float, default=86400, help='Dump time in seconds. Default 86400 (24 hours).')
+parser.add_argument('--ndumps', type=float, default=10, help='Timesteps per dump. Default 10.')
 parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
 parser.add_argument('--coords_degree', type=int, default=1, help='Degree of polynomials for sphere mesh approximation.')
 parser.add_argument('--degree', type=int, default=1, help='Degree of finite element space (the DG space).')
@@ -24,7 +24,6 @@ args = parser.parse_known_args()
 args = args[0]
 
 tmax = args.tmax
-dumpt = args.dumpt
 
 if args.show_args:
     PETSc.Sys.Print(args)
@@ -132,19 +131,13 @@ def both(u):
 dS = fd.dS
 
 # build the equations
-def u_op(v, m, u, Pu, D, gamma):
-    Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
-    eqn = - fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), m)*dx
-    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
-    eqn += fd.div(v)*fd.inner(m, Pu)*dx
+def u_op(v, m, u, Pu, D):
+    eqn = fd.div(v)*fd.inner(m, Pu)*dx
     eqn -= fd.div(Pu)*fd.inner(m, v)*dx
+    Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
+    eqn -= fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), m)*dx
+    eqn -= fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
     return eqn
-
-def F_op(v, u, D, F):
-    return fd.inner(F - D*u, v)*dx
-
-def D_op(phi, F):
-    return fd.div(F)*phi*dx
 
 # u, F, gamma, m, v, D
 u, F, gamma, m, v, D = fd.split(U)
@@ -153,20 +146,20 @@ du, dF, dgamma, dm, dv, dD = fd.TestFunctions(W)
 # build the equations
 # projection of u
 eqn = inner(Dt(v),dv)*dx
-eqn -=  inner(u, dv)*dx
+eqn -= inner(u, dv)*dx
 # m projection of dl/du
-eqn += inner(Dt(m),dm)*dx
-eqn -= inner(Dt(D*(u + R)), dm)*dx
+eqn += inner(Dt(m - D*(u + R)), dm)*dx
 # momentum equation
 eqn += inner(Dt(m), du)*dx
-eqn += u_op(du, m, u, Dt(v), D, gamma)
+#eqn += u_op(du, m, u, Dt(v), D)
 eqn += fd.inner(gamma,du)*dx
 # F equation
-eqn += inner(Dt(F), dF)*dx
-eqn -= inner(Dt(u*D), dF)*dx
+eqn += inner(F+ Dt(v)*D, dF)*dx
 # gamma equation
-eqn += inner(Dt(gamma), dgamma)*dx
-eqn += div(dgamma)*Dt(inner(u, u)/2 + inner(R, u) - g*(D+b))*dx
+eqn += inner(gamma, dgamma)*dx
+eqn -= div(dgamma)*(
+    inner(u, u)/2
+    + inner(R, u)
+    - g*(D+b))*dx
 # D equation
-eqn += Dt(D)*dD*dx
-eqn -= D_op(dD, F)
+eqn += (Dt(D) + div(F))*dD*dx
