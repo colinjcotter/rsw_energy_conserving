@@ -1,4 +1,4 @@
-from EP_tools import *
+from poisson_tools import *
 from petsc4py import PETSc
 from FIAT import ufc_simplex, make_quadrature
 
@@ -51,12 +51,12 @@ lu_parameters = {
     'pc_factor_mat_solver_type': 'mumps'
 }
 
-solver_parameters = lu_parameters
+solver_parameters = sparameters
 
-stages = 1
+stages = args.time_degree
 
 ufc_line = ufc_simplex(1)
-quadrature = make_quadrature(ufc_line, 2)
+quadrature = make_quadrature(ufc_line, 2*stages)
 
 stepper = GalerkinTimeStepper(eqn, stages, t, dT, U,
                               quadrature=quadrature,
@@ -65,22 +65,24 @@ stepper = GalerkinTimeStepper(eqn, stages, t, dT, U,
 
 Us = U.subfunctions
 stagess = stepper.stages.subfunctions
+eta = fd.Function(Q)
 
 t0 = 0.
 print(f"Dt = {dt}")
 
-u, F, gamma, m, v, D = fd.split(U)
+u, F, D = fd.split(U)
 energy = (D*inner(u,u)/2 + g*D*(D/2+b))*dx
 energy0 = fd.assemble(energy)
+eta.interpolate(D - H + b)
 
-outfile = fd.VTKFile("rswenergy.pvd")
-outfile.write(*(Us[i] for i in range(6)))
+outfile = fd.VTKFile("poisson.pvd")
+outfile.write(*(Us[i] for i in range(3)), eta)
 
 dcount = 0
 for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     count = 0
     for stage in range(stages):
-        for dim in range(6):
+        for dim in range(3):
             stagess[count].assign(Us[dim])
             count += 1
     
@@ -93,4 +95,5 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
 
     dcount += 1
     if dcount % args.ndumps == 0:
-        outfile.write(*(Us[i] for i in range(6)))
+        eta.interpolate(D - H + b)
+        outfile.write(*(Us[i] for i in range(3)), eta)

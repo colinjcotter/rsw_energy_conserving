@@ -62,9 +62,6 @@ E = fd.FunctionSpace(mesh, "CG", degree+2)
 V = fd.FunctionSpace(mesh, family, degree+1)
 Q = fd.FunctionSpace(mesh, "DG", degree)
 
-# u, F, gamma, m, v, D
-W = V * V * V * V * V * Q
-
 dt = args.tmax/args.nsteps
 
 MC = MeshConstant(mesh)
@@ -100,7 +97,6 @@ if testcase == 5:
                           pow(phi_x - phi_c, 2) + pow(lambda_x - lambda_c, 2))
     bexpr = 2000.0*(1 - fd.sqrt(minarg)/rl)
     b.interpolate(bexpr)
-    u0.assign(un)
     D0.assign(eta0 + H - b)
 
 elif testcase == 6:
@@ -130,75 +126,4 @@ elif testcase == 6:
 else:
     raise NotImplementedError
 
-R = 2*Omega*fd.as_vector([0, 0, z])
-u1 = fd.Function(V).assign(u0)
-F0 = fd.Function(V).project(u0*D0)
-m0 = fd.Function(V).project(D0*(u0+R))
-gamma0 = fd.Function(V)
-w = fd.TestFunction(V)
-
-inner = fd.inner; div = fd.div; grad = fd.grad
-dx = fd.dx
-
-#fd.solve(inner(w,gamma0)*dx - div(w)*(inner(u0, u0)/2 +
-#                                      inner(R, u0) - g*(D0+b))*dx == 0,
-#         gamma0)
-
-U = fd.Function(W)
-
-# u, F, gamma, m, v, D
-u, F, gamma, m, v, D = U.subfunctions
-u.assign(u0)
-#F.assign(F0)
-gamma.assign(gamma0)
-m.assign(m0)
-v.assign(0.)
-D.assign(D0)
-
-X = fd.TestFunction(W)
-
-n = fd.FacetNormal(mesh)
-
-def both(u):
-    return 2*fd.avg(u)
-
-dS = fd.dS; sign = fd.sign
-
-# build the equations
-def u_op(v, m, Pu):
-    eqn = div(v)*inner(m, Pu)*dx
-    eqn -= div(Pu)*inner(m, v)*dx
-
-    if args.centred:
-        Upwind = 0.5
-    else:
-        Upwind = 0.5 * (sign(fd.dot(Pu, n)) + 1)
-    Upwind = 0.5 * (sign(fd.dot(Pu, n)) + 1)
-    eqn -= inner(perp(grad(inner(v, perp(Pu)))), m)*dx
-    eqn += inner(both(perp(n)*inner(v, perp(Pu))), both(Upwind*m))*dS
-    return eqn
-
-# u, F, gamma, m, v, D
-u, F, gamma, m, v, D = fd.split(U)
-du, dF, dgamma, dm, dv, dD = fd.TestFunctions(W)
-
-# build the equations
-# projection of u
-eqn = inner(Dt(v),dv)*dx
-eqn -= inner(u, dv)*dx
-# m projection of dl/du
-eqn += inner(Dt(m - D*(u + R)), dm)*dx
-# momentum equation
-eqn += inner(Dt(m), du)*dx
-eqn += u_op(du, m, Dt(v))
-eqn += inner(Dt(gamma),du*D)*dx
-# F equation
-eqn += inner(Dt(F) - Dt(v)*D, dF)*dx
-# gamma equation
-eqn += inner(Dt(gamma), dgamma)*dx
-eqn -= div(dgamma)*(
-    inner(u, u)/2
-    + inner(R, u)
-    - g*(D+b))*dx
-# D equation
-eqn += (Dt(D) + div(Dt(F)))*dD*dx
+R = 2*Omega*fd.as_vector([-y, x, 0])
