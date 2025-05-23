@@ -56,7 +56,7 @@ solver_parameters = lu_parameters
 stages = 1
 
 ufc_line = ufc_simplex(1)
-quadrature = make_quadrature(ufc_line, 5)
+quadrature = make_quadrature(ufc_line, 2)
 
 stepper = GalerkinTimeStepper(eqn, stages, t, dT, U,
                               quadrature=quadrature,

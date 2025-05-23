@@ -19,6 +19,7 @@ parser.add_argument('--filename', type=str, default='w5')
 parser.add_argument('--time_degree', type=int, default=1, help='Degree of polynomials in time.')
 parser.add_argument('--bdfm', action='store_true', help='Use the BDFM space.')
 parser.add_argument('--centred', action='store_true', help='If present, use the centred scheme for velocity advection in the curl term, otherwise use the upwind scheme.')
+parser.add_argument('--williamson', type=int, default=6, help='Williamson testcase number.')
 
 args = parser.parse_known_args()
 args = args[0]
@@ -57,6 +58,7 @@ if args.bdfm:
 else:
     family = "BDM"
 
+E = fd.FunctionSpace(mesh, "CG", degree+2)
 V = fd.FunctionSpace(mesh, family, degree+1)
 Q = fd.FunctionSpace(mesh, "DG", degree)
 
@@ -73,39 +75,69 @@ Omega = MC.Constant(7.292e-5)  # rotation rate
 g = MC.Constant(9.8)  # Gravitational constant
 b = fd.Function(Q, name="Topography")
 
-def Williamson5InitialConditions():
-    x = fd.SpatialCoordinate(mesh)
+u0 = fd.Function(V, name="Velocity")
+D0 = fd.Function(Q, name="Depth")
+eta0 = fd.Function(Q, name="elevation")
+psi0 = fd.Function(E, name="streamfunction")
+
+testcase = args.williamson
+x, y, z = fd.SpatialCoordinate(mesh)
+
+if testcase == 5:
     u_0 = 20.0  # maximum amplitude of the zonal wind [m/s]
     u_max = fd.Constant(u_0)
-    u_expr = fd.as_vector([-u_max*x[1]/R0, u_max*x[0]/R0, 0.0])
-    eta_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
-    un = fd.Function(V, name="Velocity").project(u_expr)
-    etan = fd.Function(Q, name="Elevation").project(eta_expr)
-    
+    u_expr = fd.as_vector([-u_max*y/R0, u_max*x/R0, 0.0])
+    eta_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(z*z/(R0*R0)))/g
+    u0.project(u_expr)
+    eta0.project(eta_expr)
     # Topography.
     rl = fd.pi/9.0
-    lambda_x = fd.atan2(x[1]/R0, x[0]/R0)
+    lambda_x = fd.atan2(y/R0, x/R0)
     lambda_c = -fd.pi/2.0
-    phi_x = fd.asin(x[2]/R0)
+    phi_x = fd.asin(z/R0)
     phi_c = fd.pi/6.0
     minarg = fd.min_value(pow(rl, 2),
                           pow(phi_x - phi_c, 2) + pow(lambda_x - lambda_c, 2))
     bexpr = 2000.0*(1 - fd.sqrt(minarg)/rl)
-    bn = fd.Function(Q)
-    bn.interpolate(bexpr)
-    Dn = fd.Function(Q).assign(etan + H - b)
-    return un, Dn, bn
+    b.interpolate(bexpr)
+    u0.assign(un)
+    D0.assign(eta0 + H - b)
 
-u0, D0, b = Williamson5InitialConditions()
-R = 2*Omega*fd.as_vector([0, 0, x[2]])
+elif testcase == 6:
+    lon = fd.atan2(y, x)
+    l = (x**2 + y**2)**0.5
+    lat = fd.atan2(z, l)
+
+    # code stolen from Alex Brown
+    R = fd.Constant(4)
+    K = fd.Constant(7.847e-6) # Frequency parameter, in sec^-1
+    w = K
+    H0 = fd.Constant(8000.)
+    psi = fd.Function(E)
+    psiexpr = -R0**2 * w * fd.sin(lat) + \
+        R0**2 * K * fd.cos(lat)**R * fd.sin(lat) * fd.cos(R*lon)
+    psi.interpolate(psiexpr)
+    u_expr = perp(fd.grad(psi))
+    u0.project(u_expr)
+    # Initilising the depth field
+    A = (w / 2) * (2 * Omega + w) * fd.cos(lat)**2 + \
+        0.25 * K**2 * fd.cos(lat)**(2 * R) * ((R + 1) * fd.cos(lat)**2 + (2 * R**2 - R - 2) - 2 * R**2 * fd.cos(lat)**(-2))
+    B_frac = (2 * (Omega + w) * K) / ((R + 1) * (R + 2))
+    B = B_frac * fd.cos(lat)**R * ((R**2 + 2 * R + 2) - (R + 1)**2 * fd.cos(lat)**2)
+    C = (1 / 4) * K**2 * fd.cos(lat)**(2 * R) * ((R + 1)*fd.cos(lat)**2 - (R + 2))
+    Dexpr = H0 + R0**2 * (A + B*fd.cos(lon*R) + C * fd.cos(2 * R * lon))/g
+    D0.interpolate(Dexpr)
+else:
+    raise NotImplementedError
+
+R = 2*Omega*fd.as_vector([0, 0, z])
 u1 = fd.Function(V).assign(u0)
-D0 = fd.Function(Q).assign(D0)
 F0 = fd.Function(V).project(u0*D0)
 m0 = fd.Function(V).project(D0*(u0+R))
 gamma0 = fd.Function(V)
 w = fd.TestFunction(V)
 
-inner = fd.inner; div = fd.div
+inner = fd.inner; div = fd.div; grad = fd.grad
 dx = fd.dx
 
 #fd.solve(inner(w,gamma0)*dx - div(w)*(inner(u0, u0)/2 +
@@ -130,20 +162,20 @@ n = fd.FacetNormal(mesh)
 def both(u):
     return 2*fd.avg(u)
 
-dS = fd.dS
+dS = fd.dS; sign = fd.sign
 
 # build the equations
-def u_op(v, m, u, Pu, D):
-    eqn = fd.div(v)*fd.inner(m, Pu)*dx
-    eqn -= fd.div(Pu)*fd.inner(m, v)*dx
+def u_op(v, m, Pu):
+    eqn = div(v)*inner(m, Pu)*dx
+    eqn -= div(Pu)*inner(m, v)*dx
 
     if args.centred:
         Upwind = 0.5
     else:
-        Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
-    Upwind = 0.5 * (fd.sign(fd.dot(u, n)) + 1)
-    eqn -= fd.inner(perp(fd.grad(fd.inner(v, perp(Pu)))), m)*dx
-    eqn += fd.inner(both(perp(n)*fd.inner(v, perp(Pu))), both(Upwind*m))*dS
+        Upwind = 0.5 * (sign(fd.dot(Pu, n)) + 1)
+    Upwind = 0.5 * (sign(fd.dot(Pu, n)) + 1)
+    eqn -= inner(perp(grad(inner(v, perp(Pu)))), m)*dx
+    eqn += inner(both(perp(n)*inner(v, perp(Pu))), both(Upwind*m))*dS
     return eqn
 
 # u, F, gamma, m, v, D
@@ -158,8 +190,8 @@ eqn -= inner(u, dv)*dx
 eqn += inner(Dt(m - D*(u + R)), dm)*dx
 # momentum equation
 eqn += inner(Dt(m), du)*dx
-eqn += u_op(du, m, u, Dt(v), D)
-eqn += fd.inner(Dt(gamma),du)*dx
+eqn += u_op(du, m, Dt(v))
+eqn += inner(Dt(gamma),du*D)*dx
 # F equation
 eqn += inner(Dt(F) - Dt(v)*D, dF)*dx
 # gamma equation
