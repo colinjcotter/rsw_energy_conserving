@@ -21,14 +21,14 @@ patch = {
 }
 
 sparameters = {
-    "snes_converged_reason": None,
-    "snes_monitor": None,
+    #"snes_converged_reason": None,
+    #"snes_monitor": None,
     "snes_atol": 1e-50,
     "snes_stol": 1e-50,
     "snes_rtol": 1.0e-8,
     "snes_max_it": 10,
-    "ksp_converged_reason": None,
-    "ksp_monitor": None,
+    #"ksp_converged_reason": None,
+    #"ksp_monitor": None,
     #"ksp_converged_rate": None,
     "ksp_type": "gmres",
     "ksp_atol": 1.0e-50,
@@ -79,6 +79,7 @@ outfile = fd.VTKFile("poisson.pvd")
 outfile.write(*(Us[i] for i in range(3)), eta)
 
 dcount = 0
+energy_errs = []
 for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     count = 0
     for stage in range(stages):
@@ -88,7 +89,7 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     
     stepper.advance()
     denergy = (fd.assemble(energy)-energy0)/energy0
-    print(f'\n{denergy}')
+    energy_errs.append(denergy)
     
     t0 += dt
     t.assign(t0)
@@ -97,3 +98,5 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     if dcount % args.ndumps == 0:
         eta.interpolate(D - H + b)
         outfile.write(*(Us[i] for i in range(3)), eta)
+
+np.savetxt("energy_errors.txt", energy_errs)

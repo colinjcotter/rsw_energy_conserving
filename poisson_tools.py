@@ -35,7 +35,7 @@ else:
     Upwind = 0.5 * (sign(fd.dot(u, n)) + 1)
 eqn -= inner(perp(grad(inner(du, perp(ubar)))), u)*dx
 eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*u))*dS
-f = 2*Omega
+f = 2*Omega*z/MC.Constant(R0)  # Coriolis parameter
 eqn += inner(du, f*perp(ubar))*dx
 eqn -= div(du)*(inner(u,u)/2 + g*(D+b))*dx
 
