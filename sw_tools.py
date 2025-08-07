@@ -9,9 +9,9 @@ import numpy as np
 
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
 parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
-parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
+parser.add_argument('--tmax', type=float, default=12960, help='Final time in seconds. Default 1296000 (15 days).')
 parser.add_argument('--ndumps', type=int, default=10, help='Timesteps per dump. Default 10.')
-parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
+parser.add_argument('--nsteps', type=int, default=10, help='Number of steps, default 1000')
 parser.add_argument('--coords_degree', type=int, default=1, help='Degree of polynomials for sphere mesh approximation.')
 parser.add_argument('--degree', type=int, default=1, help='Degree of finite element space (the DG space).')
 parser.add_argument('--show_args', action='store_true', help='Output all the arguments.')

@@ -51,6 +51,17 @@ lu_parameters = {
     'pc_factor_mat_solver_type': 'mumps'
 }
 
+W_F = fd.FunctionSpace(mesh, "DG", 0)
+dW = fd.Function(W_F)
+
+pcg = fd.PCG64(seed=1234)
+
+rg = fd.RandomGenerator(pcg)
+
+
+
+
+
 solver_parameters = sparameters
 
 stages = args.time_degree
@@ -86,7 +97,16 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
         for dim in range(3):
             stagess[count].assign(Us[dim])
             count += 1
-    
+    # setup noise 
+    dW.assign(rg.normal(W_F, 0.0, 1.0))
+    wsolver1.solve()
+    wsolver2.solve()
+    #wsolver3.solve()
+    # Compute noise vector field (ufl expression)
+    noise_expr = dT**0.5*dU_2
+    # Project or assign noise_expr into u_noise_func
+    psi_noise.project(noise_expr)  # works if spaces match
+    # advancing stepper
     stepper.advance()
     denergy = (fd.assemble(energy)-energy0)/energy0
     energy_errs.append(denergy)
