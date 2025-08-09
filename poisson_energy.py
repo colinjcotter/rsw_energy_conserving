@@ -51,10 +51,9 @@ lu_parameters = {
     'pc_factor_mat_solver_type': 'mumps'
 }
 
-W_F = fd.FunctionSpace(mesh, "DG", 0)
-dW = fd.Function(W_F)
 
-pcg = fd.PCG64(seed=1234)
+
+pcg = fd.PCG64(seed=123456789)
 
 rg = fd.RandomGenerator(pcg)
 
@@ -86,8 +85,8 @@ energy = (D*inner(u,u)/2 + g*D*(D/2+b))*dx
 energy0 = fd.assemble(energy)
 eta.interpolate(D - H + b)
 
-outfile = fd.VTKFile("poisson.pvd")
-outfile.write(*(Us[i] for i in range(3)), eta)
+outfile = fd.VTKFile("rsw_output.pvd")
+outfile.write(*(Us[i] for i in range(3)), eta, psi_noise)
 
 dcount = 0
 energy_errs = []
@@ -99,13 +98,16 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
             count += 1
     # setup noise 
     dW.assign(rg.normal(W_F, 0.0, 1.0))
+    print('noise value', dW.dat.data.min())
     wsolver1.solve()
     wsolver2.solve()
     #wsolver3.solve()
     # Compute noise vector field (ufl expression)
     noise_expr = dT**0.5*dU_2
-    # Project or assign noise_expr into u_noise_func
-    psi_noise.project(noise_expr)  # works if spaces match
+    print('update noise value', dU_2.dat.data.min())
+    
+    psi_noise.project(noise_expr)
+    print('update noise value', psi_noise.dat.data.min())
     # advancing stepper
     stepper.advance()
     denergy = (fd.assemble(energy)-energy0)/energy0
@@ -117,6 +119,6 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     dcount += 1
     if dcount % args.ndumps == 0:
         eta.interpolate(D - H + b)
-        outfile.write(*(Us[i] for i in range(3)), eta)
+        outfile.write(*(Us[i] for i in range(3)), eta, psi_noise)
 
 np.savetxt("energy_errors.txt", energy_errs)

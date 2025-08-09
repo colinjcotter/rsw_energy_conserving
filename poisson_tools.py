@@ -25,24 +25,25 @@ def both(u):
 
 dS = fd.dS; sign = fd.sign
 
-# caculate mesh width for kappa_inv_sq
+##   Setup noise term using Matern formula   ##
+# caculate mesh width
 total_area = fd.assemble(1 * dx(mesh))
 num_cells = mesh.num_cells()
 avg_area = total_area / num_cells
 h = math.sqrt(4 * avg_area / math.sqrt(3))
-kappa_inv_sq = fd.Constant((h/2)**2)
+print('value of h', h)
+
 
 # solver_parameters
 sp = {"ksp_type": "cg", "pc_type": "lu",
         "pc_factor_mat_solver_type": "mumps"}
-# Setup noise term using Matern formula
-Vcg = fd.FunctionSpace(mesh, "CG", 1) 
-W_F = fd.FunctionSpace(mesh, "DG", 0)
 
+Vcg = fd.FunctionSpace(mesh, "CG", 1)  
+W_F = fd.FunctionSpace(mesh, "DG", 0)
+dW = fd.Function(W_F)
 dW_phi = fd.TestFunction(Vcg)
 dU = fd.TrialFunction(Vcg)
-
-dW = fd.Function(W_F)
+kappa_inv_sq = fd.Constant((h/2)**2)
 dU_1 = fd.Function(Vcg)
 dU_2 = fd.Function(Vcg)
 dU_3 = fd.Function(Vcg)
@@ -51,16 +52,18 @@ dU_3 = fd.Function(Vcg)
 a_dW = kappa_inv_sq*fd.inner(fd.grad(dU), fd.grad(dW_phi))*dx \
             + dU*dW_phi*dx
 L_w1 = dW*dW_phi*dx
-w_prob1 = fd.LinearVariationalProblem(a_dW, L_w1, dU_1, constant_jacobian=True)
+w_prob1 = fd.LinearVariationalProblem(a_dW, L_w1, dU_1)
 wsolver1 = fd.LinearVariationalSolver(w_prob1, solver_parameters=sp)
+
 L_w2 = dU_1*dW_phi*dx
-w_prob2 = fd.LinearVariationalProblem(a_dW, L_w2, dU_2, constant_jacobian=True)
+w_prob2 = fd.LinearVariationalProblem(a_dW, L_w2, dU_2)
 wsolver2 = fd.LinearVariationalSolver(w_prob2, solver_parameters=sp)
+
 L_w3 = dU_2*dW_phi*dx
-w_prob3 = fd.LinearVariationalProblem(a_dW, L_w3, dU_3,  constant_jacobian=True)
+w_prob3 = fd.LinearVariationalProblem(a_dW, L_w3, dU_3)
 wsolver3 = fd.LinearVariationalSolver(w_prob3, solver_parameters=sp)
 
-# Function to hold the noise velocity field
+# Create a  Function to hold the noise velocity field
 psi_noise = fd.Function(Vcg, name="u_noise")  
 # build the equations
 # u, G, D
@@ -75,7 +78,6 @@ if args.centred:
     Upwind = 0.5
 else:
     Upwind = 0.5 * (sign(fd.dot(u, n)) + 1)
-
 # eqn -= inner(perp(grad(inner(du, perp(ubar)))), u)*dx
 # eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*u))*dS
 # SFLT noise
