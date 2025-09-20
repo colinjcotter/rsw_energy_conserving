@@ -2,7 +2,7 @@ from poisson_tools import *
 from petsc4py import PETSc
 from FIAT import ufc_simplex, make_quadrature
 
-print = PETSc.Sys.Print
+#print = PETSc.Sys.Print
 
 patch = {
     "pc_type": "python",
@@ -21,34 +21,23 @@ patch = {
 }
 
 sparameters = {
-    #"snes_converged_reason": None,
-    #"snes_monitor": None,
+    "snes_monitor": None,
     "snes_atol": 1e-50,
     "snes_stol": 1e-50,
-    "snes_rtol": 1.0e-8,
+    "snes_rtol": 1e-11,
     "snes_max_it": 10,
-    #"ksp_converged_reason": None,
-    #"ksp_monitor": None,
-    #"ksp_converged_rate": None,
+    "snes_converged_reason": None,
+    "ksp_converged_reason": None,
+    "ksp_monitor": None,
+    "ksp_converged_rate": None,
     "ksp_type": "gmres",
     "ksp_atol": 1.0e-50,
-    "ksp_rtol": 1e-10,
     "ksp_max_it": 30,
     "pc_type": "ksp",
     "ksp_ksp_type": "richardson",
-    "ksp_max_it": 3,
+    "ksp_richardson_scale": 0.8,
+    "ksp_ksp_max_it": 3,
     "ksp" : patch
-}
-
-lu_parameters = {
-    'snes_monitor': None,
-    #'ksp_monitor': None,
-    'snes_rtol': 1e-8,
-    'snes_atol': 0,
-    'snes_stol': 0,
-    'ksp_type': 'gmres',
-    'pc_type': 'lu',
-    'pc_factor_mat_solver_type': 'mumps'
 }
 
 
@@ -84,11 +73,18 @@ u, F, D = fd.split(U)
 energy = (D*inner(u,u)/2 + g*D*(D/2+b))*dx
 energy0 = fd.assemble(energy)
 eta.interpolate(D - H + b)
-
-outfile = fd.VTKFile("rsw_output.pvd")
-outfile.write(*(Us[i] for i in range(3)), eta, psi_noise)
+if testcase == 5:
+    print("Williamson 5")
+    outfile = fd.VTKFile("w5_rsw_output_SFLT.pvd")
+elif testcase == 6:
+    print("Williamson 6")
+    outfile = fd.VTKFile("w6_rsw_output_SFLT.pvd")
+else:
+    outfile = fd.VTKFile("rsw_output_SFLT.pvd")
+outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, u_noise)
 
 dcount = 0
+itcount = 0.0
 energy_errs = []
 for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     count = 0
@@ -98,27 +94,37 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
             count += 1
     # setup noise 
     dW.assign(rg.normal(W_F, 0.0, 1.0))
-    print('noise value', dW.dat.data.min())
     wsolver1.solve()
     wsolver2.solve()
-    #wsolver3.solve()
+    wsolver3.solve()
     # Compute noise vector field (ufl expression)
-    noise_expr = dT**0.5*dU_2
-    print('update noise value', dU_2.dat.data.min())
+    noise_expr = dU_3
     
     psi_noise.project(noise_expr)
-    print('update noise value', psi_noise.dat.data.min())
+    # solver for u_noise
+    noise_proj_solver.solve()
     # advancing stepper
     stepper.advance()
-    denergy = (fd.assemble(energy)-energy0)/energy0
-    energy_errs.append(denergy)
+    itcount += stepper.solver.snes.getLinearSolveIterations()  
     
+    denergy = (fd.assemble(energy)-energy0)/energy0
+    denergy0 = (fd.assemble(energy))
+    print(denergy0)
+    energy_errs.append(denergy)
+    if testcase == 5:
+        np.savetxt("w5_energy_errors_SFLT.txt", energy_errs)
+    elif testcase == 6:
+        np.savetxt("w6_energy_errors_pure_2.txt", energy_errs)
+    # advance time
     t0 += dt
     t.assign(t0)
-
+    print('time', t0)
+    
     dcount += 1
     if dcount % args.ndumps == 0:
         eta.interpolate(D - H + b)
-        outfile.write(*(Us[i] for i in range(3)), eta, psi_noise)
+        outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, u_noise)
 
-np.savetxt("energy_errors.txt", energy_errs)
+print('Total linear iterations', itcount)
+
+print('Average linear iterations', itcount/(args.nsteps))
