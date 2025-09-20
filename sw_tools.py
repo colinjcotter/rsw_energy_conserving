@@ -25,6 +25,9 @@ parser.add_argument('--SFLT', action='store_true', help='Enable SFLT noise terms
 args = parser.parse_known_args()
 args = args[0]
 
+# Force SFLT to be False (no SFLT noise terms)
+args.SFLT = True
+
 tmax = args.tmax
 
 if args.show_args:
