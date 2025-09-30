@@ -47,7 +47,7 @@ h_min, h_avg, h_max = float(h_vals.min()), float(h_vals.mean()), float(h_vals.ma
 sp = {"ksp_type": "cg", "pc_type": "lu",
         "pc_factor_mat_solver_type": "mumps"}
 
-Vcg = fd.FunctionSpace(mesh, "CG", 1)  
+Vcg = fd.FunctionSpace(mesh, "CG", 3)  
 W_F = fd.FunctionSpace(mesh, "DG", 0)
 dW = fd.Function(W_F)
 dW_phi = fd.TestFunction(Vcg)
@@ -56,11 +56,11 @@ dU = fd.TrialFunction(Vcg)
 dU_1 = fd.Function(Vcg)
 dU_2 = fd.Function(Vcg)
 dU_3 = fd.Function(Vcg)
-noise_scale = fd.Constant(1000.0)
+noise_scale = fd.Constant(1.0)
 
 
 nu  = 1.0
-lam = 1.0e4          # meters, e.g. ~5*h_avg
+lam = 1.0e6          # meters, e.g. ~5*h_avg
 kappa = (8.0*nu)**0.5 / lam
 kappa_inv_sq = fd.Constant(1.0/(kappa**2))  # = lam**2/(8*nu)
 

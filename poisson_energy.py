@@ -2,6 +2,7 @@ from poisson_tools import *
 from petsc4py import PETSc
 from FIAT import ufc_simplex, make_quadrature
 
+
 #print = PETSc.Sys.Print
 
 patch = {
@@ -29,7 +30,7 @@ sparameters = {
     "snes_converged_reason": None,
     "ksp_converged_reason": None,
     "ksp_monitor": None,
-    "ksp_converged_rate": None,
+    #"ksp_converged_rate": None,
     "ksp_type": "gmres",
     "ksp_atol": 1.0e-50,
     "ksp_max_it": 30,
@@ -40,16 +41,9 @@ sparameters = {
     "ksp" : patch
 }
 
-
-
 pcg = fd.PCG64(seed=123456789)
 
 rg = fd.RandomGenerator(pcg)
-
-
-
-
-
 solver_parameters = sparameters
 
 stages = args.time_degree
@@ -73,14 +67,20 @@ u, F, D = fd.split(U)
 energy = (D*inner(u,u)/2 + g*D*(D/2+b))*dx
 energy0 = fd.assemble(energy)
 eta.interpolate(D - H + b)
+
+suffix = "SFLT" if args.SFLT else "pure"
 if testcase == 5:
     print("Williamson 5")
-    outfile = fd.VTKFile("w5_rsw_output_SFLT.pvd")
+    fname = "w5_rsw_output"
 elif testcase == 6:
     print("Williamson 6")
-    outfile = fd.VTKFile("w6_rsw_output_SFLT.pvd")
+    fname = "w6_rsw_output"
 else:
-    outfile = fd.VTKFile("rsw_output_SFLT.pvd")
+    fname = "rsw_output"
+
+
+outfile = fd.VTKFile(f"{fname}_{suffix}.pvd")
+
 outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, u_noise)
 
 dcount = 0
@@ -112,9 +112,11 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     print(denergy0)
     energy_errs.append(denergy)
     if testcase == 5:
-        np.savetxt("w5_energy_errors_SFLT.txt", energy_errs)
+        np.savetxt(f"w5_energy_errors_{suffix}.txt", energy_errs)
     elif testcase == 6:
-        np.savetxt("w6_energy_errors_pure_2.txt", energy_errs)
+        np.savetxt(f"w6_energy_errors_{suffix}.txt", energy_errs)
+    else:
+        np.savetxt(f"rsw_energy_errors_{suffix}.txt", energy_errs)
     # advance time
     t0 += dt
     t.assign(t0)
