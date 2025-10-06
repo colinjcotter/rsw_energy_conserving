@@ -1,0 +1,240 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb,stmaryrd,amsthm,MnSymbol}
+\newcommand{\pp}[2]{\frac{\partial #1}{\partial #2}} 
+\newcommand{\dede}[2]{\frac{\delta #1}{\delta #2}}
+\newcommand{\dd}[2]{\frac{\diff#1}{\diff#2}}
+\newcommand{\dt}[1]{\diff\!#1}
+\DeclareMathOperator{\Hess}{Hess}
+\def\MM#1{\boldsymbol{#1}}
+\DeclareMathOperator{\diff}{d}
+\DeclareMathOperator{\DIV}{DIV}
+\DeclareMathOperator{\D}{D}
+\bibliographystyle{plain}
+\newcommand{\vecx}[1]{\MM{#1}}
+\newtheorem{definition}{Definition}
+\newcommand{\code}[1]{{\ttfamily #1}} 
+\usepackage[margin=2cm]{geometry}
+
+\usepackage{fancybox}
+\begin{document}
+\title{Notes on energy conserving method for SWE}
+\author{Colin}
+\maketitle
+
+\section{Poisson bracket method}
+
+The Poisson bracket method makes use of the vector invariant form of
+the velocity advection term
+\[
+(u\cdot \nabla)u = u\nabla\cdot u^{\perp} + \nabla\frac{|u|^2}{2},
+\]
+so we write the shallow water equations in the form
+\begin{align}
+  \pp{u}{t} + u^\perp(\nabla\cdot u^{\perp} + f) + \nabla\left(\frac{|u|^2}{2}
+  - g(D+b)\right) & = 0, \\
+  \pp{D}{t} + \nabla\cdot(uD) & = 0,
+\end{align}
+where $u$ is the velocity, $D$ is the layer depth, $b$ is the height
+of the bottom of the fluid layer, $g$ is the acceleration due to
+gravity, $u^{\perp} = \hat{k}\times u$, $\hat{k}$ is the outward
+pointing normal to the surface (e.g. on the sphere), and $\nabla$ is
+the restriction of the gradient tangential to the surface.
+
+These equations have a Hamiltonian variational form
+\begin{align}
+  \langle w, u_t \rangle +
+  \left\langle w/D, {\dede{H}{u}}^\perp (\nabla\cdot u^\perp + f)
+  \right\rangle - \left\langle
+  \nabla\cdot w, \dede{H}{D}
+  \right\rangle & = 0, \quad \forall w,
+  \\
+  \left\langle \phi, D_t + \nabla\cdot \dede{H}{u} \right\rangle & = 0,
+  \quad \forall \phi,
+\end{align}
+being deliberately vague about the spaces, with
+\begin{align}
+  H &= \int_\Omega \frac{D|u|^2}{2} + gD\left(\frac{D}{2} + b\right) \diff x,
+\end{align}
+hence
+\begin{equation}
+  \dede{H}{u} = Du, \quad \dede{H}{D} = \frac{|u|^2}{2} + g(D+b).
+\end{equation}
+Conservation of $H$ follows from
+\begin{align}
+  \label{eq:econ}
+  \dot{H} = \langle \dede{H}{u}, u_t \rangle + \langle \dede{H}{D}, D_t \rangle,
+\end{align}
+and then choosing $w=\dede{H}{u}$, $\phi=\dede{H}{D}$ in the variational
+formulation of the equations.
+
+If we choose finite element spaces $V\in H_{\mathrm{div}}$, $Q\in L^2$,
+then $\nabla\cdot u^\perp$ is not well-defined, hence we use a DG-type
+formulation for that term, leading to the formulation seeking
+$(u,D)\in V\times Q$ such that
+\begin{align}
+  \langle w, u_t \rangle -
+  \left\langle \nabla^\perp_h\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)
+  u
+  \right\rangle
+  +
+  \left\llangle 2\left\{n^\perp\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)\right\},
+  \tilde{u}
+  \right\rrangle  
+    +
+  \left\langle w/D, {\dede{H}{u}}^\perp f
+  \right\rangle - \left\langle
+  \nabla\cdot w, \dede{H}{D}
+  \right\rangle & = 0, \quad \forall w \in V,
+  \\
+  \left\langle \phi, D_t + \nabla\cdot \dede{H}{u} \right\rangle & = 0,
+  \quad \forall \phi \in Q,
+\end{align}
+where $\nabla_h$ is the elementwise broken derivative,
+$\llangle\cdot,\cdot\rrangle$ is the inner product integrating over
+all the mesh facets, $\{\cdot\}$ indicates an average over the two
+sides of a facet, and $\tilde{u}$ indicates the upwind value of $u$
+(we can also use the average but the upwinding does not break energy
+conservation and reduces gridscale oscillations). As before,
+energy conservation follows from \eqref{eq:econ}, choosing
+and then choosing $w=\dede{H}{u} \in V$, $\phi=\dede{H}{D}\in Q$
+with variational derivatives now taken within $V\times Q$. [state
+  and prove as a theorem]
+
+To obtain an energy conserving time integration scheme we use a
+continuous time Petrov-Galerkin scheme, with $(u,v) \in (V\otimes P,
+Q\otimes P)$, $(w,\phi) \in (V\otimes P', Q\otimes P')$, where $P$ is
+a degree $k$ polynomial space in time, and $P'$ is the space one
+degree lower. A straightforward application of the scheme gives
+\begin{align}
+  \int_0^{\Delta t}\langle w, u_t \rangle -
+  \left\langle \nabla^\perp_h\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)
+  u
+  \right\rangle
+  +
+  \left\llangle 2\left\{n^\perp\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)\right\},
+  \tilde{u}
+  \right\rrangle  
+    +
+  \left\langle w/D, {\dede{H}{u}}^\perp f
+  \right\rangle - \left\langle
+  \nabla\cdot w, \dede{H}{D}
+  \right\rangle\diff t & = 0, \quad \forall w \in V\otimes P',
+  \\
+  \int_0^{\Delta t}\left\langle \phi, D_t + \nabla\cdot \dede{H}{u} \right\rangle \diff t & = 0,
+  \quad \forall \phi \in Q\otimes P'.
+\end{align}
+The energy conservation does not work, because we can't choose
+$w=\dede{H}{u}$, because $w \in V\times P'$ and $\dede{H}{u}\in V\times P$.
+Hence, we make the modification
+\begin{align}
+  \label{eq:discrete u}
+  \int_0^{\Delta t}\langle w, u_t \rangle -
+  \left\langle \nabla^\perp_h\left(\frac{w}{D}\cdot{
+    \mathbb{P}(\dede{H}{u})}^\perp\right)
+  u
+  \right\rangle
+  +
+  \left\llangle 2\left\{n^\perp\left(\frac{w}{D}\cdot{
+    (\mathbb{P}\dede{H}{u}})^\perp\right)\right\},
+  \tilde{u}
+  \right\rrangle  
+    +
+  \left\langle w/D, {\mathbb{P}(\dede{H}{u})}^\perp f
+  \right\rangle - \left\langle
+  \nabla\cdot w, \dede{H}{D}
+  \right\rangle\diff t & = 0, \quad \forall w \in V\otimes P',
+  \\
+  \int_0^{\Delta t}\left\langle \phi, D_t + \nabla\cdot \dede{H}{u} \right\rangle \diff t & = 0,
+  \quad \forall \phi \in Q\otimes P',
+  \label{eq:discrete D}
+\end{align}
+where $\mathbb{P}$ is the $L^2$ time projection operator into $P'$.
+
+Then, energy conservation follows from
+\begin{align}
+H^{n+1} - H^n
+& = \int_0^T \dot{H} \diff t, \\
+& = \int_0^T \langle \dede{H}{u}, u_t \rangle + \langle \dede{H}{D},
+D_t \rangle \diff t, \\
+& = \int_0^T \langle \mathbb{P}(\dede{H}{u}), u_t \rangle + \langle \mathbb{P}(\dede{H}{D}),
+D_t \rangle \diff t,
+\end{align}
+which becomes zero after using $w=\mathbb{P}(\dede{H}{u})$,
+$\phi=\mathbb{P}(\dede{H}{D})$ in the motion equations
+(\ref{eq:discrete u}-\ref{eq:discrete D}).
+[state and prove as a theorem]
+
+This can be made into a regular continuous Petrov Galerkin time scheme
+without $\mathbb{P}$ operators by introducing an additional variable
+$G\in V\times P$ with $G_t = \mathbb{P}(\dede{H}{u})$, written in
+space-time variational form as
+\begin{equation}
+  \int_0^\Delta t
+  \langle \gamma, G_t - \dede{H}{u} \rangle = 0, \quad
+  \forall \gamma \in V\times P'.
+\end{equation}
+Then an equivalent formulation seeks
+$(u, G, D) \in (V\otimes P)\times (V\otimes P)\times (Q\otimes P)$
+such that
+\begin{align}
+  \label{eq:discrete u 2}
+  \int_0^{\Delta t}\langle w, u_t \rangle -
+  \left\langle \nabla^\perp_h\left(\frac{w}{D}\cdot
+    G_t^\perp\right)
+  u
+  \right\rangle
+  +
+  \left\llangle 2\left\{n^\perp\left(\frac{w}{D}\cdot G_t^\perp\right)\right\},
+  \tilde{u}
+  \right\rrangle  
+    +
+  \left\langle w/D, G_t^\perp f
+  \right\rangle - \left\langle
+  \nabla\cdot w, \dede{H}{D}
+  \right\rangle\diff t & = 0, \quad \forall w \in V\otimes P',
+  \\
+  \int_0^{\Delta t}\left\langle G_t - \dede{H}{u}, \gamma \right\rangle
+  \diff t & = 0, \quad \forall \gamma \in V\otimes P', \\
+  \int_0^{\Delta t}\left\langle \phi, D_t + \nabla\cdot \dede{H}{u} \right\rangle \diff t & = 0,
+  \quad \forall \phi \in Q\otimes P'.
+  \label{eq:discrete D 2}
+\end{align}
+This makes it possible to use Irksome's time Galerkin integrator without
+modification.
+
+Finally, does that the energy conservation proof still works
+if we replace the time integral by a quadrature rule provided that
+it is sufficiently high degree to compute
+\[
+\int_0^{\Delta t} \langle w, u_t \rangle \diff t
+\]
+without error? Similarly for the spatial inner products (thus enabling
+nonexact integration due to division by $D$, upwinding of $u$, etc).
+[State and prove as a theorem - I'm slightly worried about whether
+  this still works in the time part with the $G_t$ modification. I
+  think it doesn't, because reducing the degree to 1 in the quadrature
+  causes energy errors that seem bigger than solver tolerance
+  stuff). But we can discuss the quadrature for the space terms
+  anyway. It also looks like we don't need to integrate the
+  $\dede{H}{D}$ term exactly, which isn't a concern here but would be
+  for ideal gas dynamics where the internal energy has fractional
+  powers in it].
+
+The novelty here is:
+\begin{enumerate}
+  \item we fully formulate and demonstrate energy conservation for
+    high order time integrators,
+  \item The equivalent formulation that works as a standard
+    space-time scheme without projections,
+  \item we have iterative schemes for solving (\ref{eq:discrete u 2}-
+    \ref{eq:discrete D 2}) in a scalable manner. Previously people
+    just did Picard iteration which doesn't really work.
+\end{enumerate}
+
+\subsection{SFLT}
+Extension to SFLT, just add a noise term to $u$ in $\nabla \cdot u^\perp$
+(and modify spatial discretisation of that term appropriately).
+[We need to check with Darryl that this is the right thing.]
+
+\end{document}
+
