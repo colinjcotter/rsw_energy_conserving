@@ -44,3 +44,17 @@ eqn -= div(du)*(inner(u,u)/2 + g*(D+b))*dx
 eqn += inner(F - D*u, dG)*dx
 # D transport equation
 eqn += dD*(Dt(D) + div(F))*dx
+
+q = fd.TrialFunction(E)
+p = fd.TestFunction(E)
+
+un, _, _ = fd.split(U)
+
+qn = fd.Function(E, name="Relative Vorticity")
+veqn = q*p*dx + fd.inner(perp(fd.grad(p)), un)*dx
+vprob = fd.LinearVariationalProblem(fd.lhs(veqn), fd.rhs(veqn), qn)
+qparams = {'ksp_type':'preonly',
+           'pc_type':'lu',
+           "pc_factor_mat_solver_type": "superlu_dist"}
+qsolver = fd.LinearVariationalSolver(vprob,
+                                     solver_parameters=qparams)

@@ -17,26 +17,25 @@ patch = {
     "patch_pc_patch_symmetrise_sweep": False,
     "patch_sub_ksp_type": "preonly",
     "patch_sub_pc_type": "lu",
-    "patch_sub_pc_factor_shift_type": "nonzero"
+    #"patch_sub_pc_factor_shift_type": "nonzero"
 }
 
 sparameters = {
-    #"snes_converged_reason": None,
-    #"snes_monitor": None,
+    "snes_monitor": None,
     "snes_atol": 1e-50,
     "snes_stol": 1e-50,
-    "snes_rtol": 1.0e-8,
+    "snes_rtol": 1.0e-7,
     "snes_max_it": 10,
-    #"ksp_converged_reason": None,
-    #"ksp_monitor": None,
+    "ksp_converged_reason": None,
+    "ksp_monitor": None,
     #"ksp_converged_rate": None,
     "ksp_type": "gmres",
     "ksp_atol": 1.0e-50,
-    "ksp_rtol": 1e-10,
     "ksp_max_it": 30,
     "pc_type": "ksp",
     "ksp_ksp_type": "richardson",
-    "ksp_max_it": 3,
+    "ksp_richardson_scale": 0.8,
+    "ksp_ksp_max_it": 3,
     "ksp" : patch
 }
 
@@ -75,8 +74,10 @@ energy = (D*inner(u,u)/2 + g*D*(D/2+b))*dx
 energy0 = fd.assemble(energy)
 eta.interpolate(D - H + b)
 
+qsolver.solve()
+
 outfile = fd.VTKFile("poisson.pvd")
-outfile.write(*(Us[i] for i in range(3)), eta)
+outfile.write(*(Us[i] for i in range(3)), eta, qn)
 
 dcount = 0
 energy_errs = []
@@ -97,6 +98,7 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     dcount += 1
     if dcount % args.ndumps == 0:
         eta.interpolate(D - H + b)
-        outfile.write(*(Us[i] for i in range(3)), eta)
+        qsolver.solve()
+        outfile.write(*(Us[i] for i in range(3)), eta, qn)
 
 np.savetxt("energy_errors.txt", energy_errs)
