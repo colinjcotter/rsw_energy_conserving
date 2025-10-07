@@ -39,6 +39,25 @@ sparameters = {
     "ksp" : patch
 }
 
+sparameters = {
+    #"snes_monitor": "poisson.dat",
+    "snes_atol": 1e-50,
+    "snes_stol": 1e-50,
+    "snes_rtol": 1.0e-7,
+    "snes_max_it": 10,
+    #"ksp_converged_reason": "poisson.dat",
+    #"ksp_monitor": "poisson.dat",
+    #"ksp_converged_rate": None,
+    "ksp_type": "gmres",
+    "ksp_atol": 1.0e-50,
+    "ksp_max_it": 30,
+    "pc_type": "ksp",
+    "ksp_ksp_type": "richardson",
+    "ksp_richardson_scale": 0.8,
+    "ksp_ksp_max_it": 3,
+    "ksp" : patch
+}
+
 lu_parameters = {
     'snes_monitor': None,
     #'ksp_monitor': None,
@@ -76,7 +95,7 @@ eta.interpolate(D - H + b)
 
 qsolver.solve()
 
-outfile = fd.VTKFile("poisson.pvd")
+outfile = fd.VTKFile(filename+".pvd")
 outfile.write(*(Us[i] for i in range(3)), eta, qn)
 
 dcount = 0

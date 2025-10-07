@@ -4,6 +4,7 @@
 \newcommand{\dede}[2]{\frac{\delta #1}{\delta #2}}
 \newcommand{\dd}[2]{\frac{\diff#1}{\diff#2}}
 \newcommand{\dt}[1]{\diff\!#1}
+\newcommand{\jump}[1]{\left[\!\!\left[ #1 \right]\!\!\right]}
 \DeclareMathOperator{\Hess}{Hess}
 \def\MM#1{\boldsymbol{#1}}
 \DeclareMathOperator{\diff}{d}
@@ -72,6 +73,7 @@ then $\nabla\cdot u^\perp$ is not well-defined, hence we use a DG-type
 formulation for that term, leading to the formulation seeking
 $(u,D)\in V\times Q$ such that
 \begin{align}
+  \label{eq:u}
   \langle w, u_t \rangle -
   \left\langle \nabla^\perp_h\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)
   u
@@ -88,6 +90,7 @@ $(u,D)\in V\times Q$ such that
   \\
   \left\langle \phi, D_t + \nabla\cdot \dede{H}{u} \right\rangle & = 0,
   \quad \forall \phi \in Q,
+  \label{eq:D}
 \end{align}
 where $\nabla_h$ is the elementwise broken derivative,
 $\llangle\cdot,\cdot\rrangle$ is the inner product integrating over
@@ -235,6 +238,93 @@ The novelty here is:
 Extension to SFLT, just add a noise term to $u$ in $\nabla \cdot u^\perp$
 (and modify spatial discretisation of that term appropriately).
 [We need to check with Darryl that this is the right thing.]
+
+\section{Local energy conservation}
+
+To develop a local energy conserving formulation, we introduce
+the broken space $\tilde{V}\supset V$ consisting of the same local
+shape functions but without continuity constraints, and the trace
+space $T$, supported on the skeleton of the mesh, with
+$u \in V\implies u\cdot n \in T$, and $\forall \gamma \in T$ $\exists
+u \in V$ such that $u\cdot n = \gamma$.
+
+We then have the broken/trace formulation finding $(u,D, \lambda)\in
+\tilde{V}\times Q \times T$ such that
+\begin{align}
+  \nonumber
+  \langle w, u_t \rangle -
+  \left\langle \nabla^\perp_h\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)
+  u
+  \right\rangle
+    +
+  \left\langle w/D, {\dede{H}{u}}^\perp f
+  \right\rangle - \left\langle
+  \nabla_h\cdot w, \dede{H}{D}
+  \right\rangle & \\
+  \label{eq:br u}
+  \qquad +   
+  \left\llangle 2\left\{n^\perp\left(\frac{w}{D}\cdot{\dede{H}{u}}^\perp\right)\right\},
+  \tilde{u}
+  \right\rrangle
+  + \left\llangle \jump{w}, \lambda \right\rrangle
+& = 0, \quad \forall w \in \tilde{V},
+  \\
+  \left\langle \phi, D_t + \nabla_h\cdot \dede{H}{u} \right\rangle & = 0,
+  \quad \forall \phi \in Q, \\
+  \left\llangle \jump{u}, \mu \right \rrangle & = 0,
+  \quad \forall \mu \in T, \label{eq:br lambda}
+\end{align}
+where $\jump{u}=u^+\cdot n^+ + u^-\cdot n^-$.
+
+The solveability of this system needs to be established, but it is
+known for the linear rotating SWE. Assuming we have a solution, then
+we automatically have a solution of the original unbroken system.
+First, from the jump condition \eqref{eq:br lambda} we have that
+$\tilde{u}\in V \subset \tilde{V}$. Second, taking $w \in \tilde{V}\subset
+V$ in \eqref{eq:br u} means that $\jump{w}=0$, and we recover 
+\eqref{eq:u}.
+
+Further, any solution of (\ref{eq:u}-\ref{eq:D}) solves equations
+(\ref{eq:br u}-\ref{eq:br lambda}). To see this, we define the operator
+$L:T\to \tilde{V}$ by seeking $v, \psi \in \tilde{V}\times Q$ such that
+\begin{align}
+  \langle w, v \rangle - \langle \nabla_h\cdot w, \psi \rangle
+  & = - \llangle \jump{w}, \lambda \rrangle, \quad \forall w \in \tilde{V}, \\
+  \langle \phi, \nabla\cdot v \rangle & = 0, \quad \forall \phi \in Q,
+\end{align}
+which is solveable by standard mixed finite element arguments, and we
+take $L\lambda=v$.
+
+We claim that any $w \in \tilde{V}$ can be written as
+$\bar{w}+L\lambda$ where $\bar{w}\in V$, for some $\lambda \in
+T$. This is done by first defining $\lambda=\jump{w}$. Then,
+$\bar{w}=w-L\lambda$ satisfies
+\[
+\jump{\bar{w}} = \jump{w} - \jump{L\lambda}
+\]
+
+
+
+Then, for any $\mu \in T$, we can use $w=L\mu$ in \eqref{eq:br u} to
+give
+\begin{align}
+\nonumber
+  \left\llangle \mu, \lambda \right\rrangle
+  & = 
+  -\langle L\mu, u_t \rangle +
+  \left\langle \nabla^\perp_h\left(\frac{L\mu}{D}\cdot{\dede{H}{u}}^\perp\right)
+  u
+  \right\rangle
+    -
+  \left\langle L\mu/D, {\dede{H}{u}}^\perp f
+  \right\rangle - \left\langle
+  \nabla\cdot L\mu, \dede{H}{D}
+  \right\rangle \\
+  & \qquad -   
+  \left\llangle 2\left\{n^\perp\left(\frac{L\mu}{D}\cdot{\dede{H}{u}}^\perp\right)\right\},
+  \tilde{u}
+  \right\rrangle, \quad \forall \mu \in T.  \label{eq:recon lambda}
+  \end{align}
 
 \end{document}
 
