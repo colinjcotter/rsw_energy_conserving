@@ -8,10 +8,10 @@ import argparse
 import numpy as np
 
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
-parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
-parser.add_argument('--tmax', type=float, default=86400, help='Final time in seconds. Default 1296000 (15 days).') # 1 day for now 86400 
+parser.add_argument('--ref_level', type=int, default=3, help='Refinement level of icosahedral grid. Default 5.')
+parser.add_argument('--tmax', type=float, default=500, help='Final time in seconds. Default 1296000 (15 days).') # 1 day for now 86400 
 parser.add_argument('--ndumps', type=int, default=10, help='Timesteps per dump. Default 10.')
-parser.add_argument('--nsteps', type=int, default=500, help='Number of steps, default 1000')
+parser.add_argument('--nsteps', type=int, default=10, help='Number of steps, default 1000')
 parser.add_argument('--coords_degree', type=int, default=1, help='Degree of polynomials for sphere mesh approximation.')
 parser.add_argument('--degree', type=int, default=1, help='Degree of finite element space (the DG space).')
 parser.add_argument('--show_args', action='store_true', help='Output all the arguments.')
@@ -26,7 +26,7 @@ args = parser.parse_known_args()
 args = args[0]
 
 # Force SFLT to be False (no SFLT noise terms)
-args.SFLT = True
+args.SFLT = False
 
 tmax = args.tmax
 
@@ -45,7 +45,8 @@ mesh = fd.IcosahedralSphereMesh(radius=R0,
                                 refinement_level=nrefs,
                                 degree=deg,
                                 distribution_parameters
-                                =distribution_parameters)
+                                =distribution_parameters,
+                                name="sphere")
 x = fd.SpatialCoordinate(mesh)
 mesh.init_cell_orientations(x)
 
