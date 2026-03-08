@@ -2,16 +2,18 @@ import firedrake as fd
 #get command arguments
 from petsc4py import PETSc
 from firedrake.__future__ import interpolate
-from irksome import Dt, MeshConstant, TimeStepper, GalerkinTimeStepper
+from irksome import Dt, MeshConstant, TimeStepper
+from irksome.galerkin_stepper import ContinuousPetrovGalerkinTimeStepper as GalerkinTimeStepper
+from irksome.scheme import GalerkinCollocationScheme, create_time_quadrature
 
 import argparse
 import numpy as np
 
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
-parser.add_argument('--ref_level', type=int, default=3, help='Refinement level of icosahedral grid. Default 5.')
-parser.add_argument('--tmax', type=float, default=500, help='Final time in seconds. Default 1296000 (15 days).') # 1 day for now 86400 
+parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
+parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
 parser.add_argument('--ndumps', type=int, default=10, help='Timesteps per dump. Default 10.')
-parser.add_argument('--nsteps', type=int, default=10, help='Number of steps, default 1000')
+parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
 parser.add_argument('--coords_degree', type=int, default=1, help='Degree of polynomials for sphere mesh approximation.')
 parser.add_argument('--degree', type=int, default=1, help='Degree of finite element space (the DG space).')
 parser.add_argument('--show_args', action='store_true', help='Output all the arguments.')
@@ -20,13 +22,16 @@ parser.add_argument('--time_degree', type=int, default=1, help='Degree of polyno
 parser.add_argument('--bdfm', action='store_true', help='Use the BDFM space.')
 parser.add_argument('--centred', action='store_true', help='If present, use the centred scheme for velocity advection in the curl term, otherwise use the upwind scheme.')
 parser.add_argument('--williamson', type=int, default=6, help='Williamson testcase number.')
-parser.add_argument('--SFLT', action='store_true', help='Enable SFLT noise terms.')
 
 args = parser.parse_known_args()
 args = args[0]
 
-# Force SFLT to be False (no SFLT noise terms)
-args.SFLT = False
+# current test run
+args.ref_level = 5          # default: 5
+args.tmax = 100000           # default: 1296000 (15 days)
+args.nsteps = 1000           # default: 1000
+args.coords_degree = 2      # default: 1
+args.SFLT = True                   # default: False
 
 tmax = args.tmax
 
@@ -46,7 +51,7 @@ mesh = fd.IcosahedralSphereMesh(radius=R0,
                                 degree=deg,
                                 distribution_parameters
                                 =distribution_parameters,
-                                name="sphere")
+                                name="sphere" + str(nrefs))
 x = fd.SpatialCoordinate(mesh)
 mesh.init_cell_orientations(x)
 
@@ -55,7 +60,7 @@ outward_normals = fd.CellNormal(mesh)
 def perp(u):
     return fd.cross(outward_normals, u)
 
-assert args.coords_degree == 1, "Need to fix formulation for higher order cells"
+#assert args.coords_degree == 1, "Need to fix formulation for higher order cells"
 
 degree = args.degree
 if args.bdfm:

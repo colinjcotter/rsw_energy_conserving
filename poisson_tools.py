@@ -6,7 +6,10 @@ from petsc4py import PETSc
 print = PETSc.Sys.Print
 
 inner = fd.inner; div = fd.div; grad = fd.grad
-dx = fd.dx
+dx = fd.dx('everywhere', metadata = {'quadrature_degree': 6,
+                                   'representation': 'quadrature'})
+dS = fd.dS('everywhere', metadata = {'quadrature_degree': 6,
+                                   'representation': 'quadrature'})
 
 # F = G_t
 # u, G, D
@@ -23,19 +26,19 @@ n = fd.FacetNormal(mesh)
 def both(u):
     return 2*fd.avg(u)
 
-dS = fd.dS; sign = fd.sign
+sign = fd.sign
 
 ##   Setup noise term using Matern formula   ##
 # caculate mesh width
 V0 = fd.FunctionSpace(mesh, "DG", 0)
 h_cell = fd.CellSize(mesh)
 
-h_fun = fd.Function(V0, name="h")
-h_fun.interpolate(h_cell)   
+# h_fun = fd.Function(V0, name="h")
+# h_fun.interpolate(h_cell)   
 
-# Now safe to access .dat
-h_vals = h_fun.dat.data_ro
-h_min, h_avg, h_max = float(h_vals.min()), float(h_vals.mean()), float(h_vals.max())
+# # Now safe to access .dat
+# h_vals = h_fun.dat.data_ro
+# h_min, h_avg, h_max = float(h_vals.min()), float(h_vals.mean()), float(h_vals.max())
 
 # print("h_min =", h_min)
 # print("h_avg =", h_avg)
@@ -56,11 +59,11 @@ dU = fd.TrialFunction(Vcg)
 dU_1 = fd.Function(Vcg)
 dU_2 = fd.Function(Vcg)
 dU_3 = fd.Function(Vcg)
-noise_scale = fd.Constant(1.0)
+noise_scale = fd.Constant(1e8)
 
 
 nu  = 1.0
-lam = 1.0e6          # meters, e.g. ~5*h_avg
+lam = 5.0e5         # meters, e.g. ~5*h_avg
 kappa = (8.0*nu)**0.5 / lam
 kappa_inv_sq = fd.Constant(1.0/(kappa**2))  # = lam**2/(8*nu)
 
@@ -74,7 +77,7 @@ L_w2 = dU_1*dW_phi*dx
 w_prob2 = fd.LinearVariationalProblem(a_dW, L_w2, dU_2)
 wsolver2 = fd.LinearVariationalSolver(w_prob2, solver_parameters=sp)
 
-L_w3 = noise_scale*dU_2*dW_phi*dx
+L_w3 = dU_2*dW_phi*dx
 w_prob3 = fd.LinearVariationalProblem(a_dW, L_w3, dU_3)
 wsolver3 = fd.LinearVariationalSolver(w_prob3, solver_parameters=sp)
 

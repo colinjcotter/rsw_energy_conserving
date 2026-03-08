@@ -1,0 +1,6 @@
+__pycache__/
+*.mp4
+*.ogv
+*.pvd
+mpi_log/
+*.pyc
