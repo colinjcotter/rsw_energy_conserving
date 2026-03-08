@@ -28,10 +28,10 @@ args = args[0]
 
 # current test run
 args.ref_level = 5          # default: 5
-args.tmax = 100000           # default: 1296000 (15 days)
-args.nsteps = 1000           # default: 1000
+args.tmax = 100000          # default: 1296000 (15 days)
+args.nsteps = 1000          # default: 1000
 args.coords_degree = 2      # default: 1
-args.SFLT = True                   # default: False
+args.SFLT = True            # default: False
 
 tmax = args.tmax
 

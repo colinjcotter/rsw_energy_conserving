@@ -4,3 +4,5 @@ __pycache__/
 *.pvd
 mpi_log/
 *.pyc
+frames/
+w6_rsw_output_SFLT/

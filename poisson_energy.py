@@ -3,9 +3,6 @@ from petsc4py import PETSc
 from FIAT import ufc_simplex, make_quadrature
 import os
 
-
-#print = PETSc.Sys.Print
-
 patch = {
     "pc_type": "python",
     "pc_python_type": "firedrake.PatchPC",
@@ -31,7 +28,6 @@ sparameters = {
     "snes_converged_reason": None,
     "ksp_converged_reason": None,
     "ksp_monitor": None,
-    #"ksp_converged_rate": None,
     "ksp_type": "gmres",
     "ksp_atol": 1.0e-50,
     "ksp_max_it": 30,
@@ -43,13 +39,10 @@ sparameters = {
 }
 
 pcg = fd.PCG64(seed=123456789)
-
 rg = fd.RandomGenerator(pcg)
 solver_parameters = sparameters
 
 stages = args.time_degree
-
-
 
 scheme = GalerkinCollocationScheme(order=stages, quadrature_degree=2*stages)
 
@@ -63,18 +56,6 @@ print("stages =", stages, type(stages))
 stepper = GalerkinTimeStepper(eqn, scheme, t, dT, U,
                               solver_parameters=solver_parameters)
 
-# ufc_line = ufc_simplex(1)
-# quadrature = make_quadrature(ufc_line, 2*stages)
-
-# stepper = GalerkinTimeStepper(eqn, stages, t, dT, U,
-#                               quadrature=quadrature,
-#                               solver_parameters=solver_parameters,
-#                               options_prefix="rsw")
-
-
-# stepper = GalerkinTimeStepper(eqn, t, dT, U,
-#                               num_stages=stages,
-#                               solver_parameters=solver_parameters)
 quadrature = create_time_quadrature(2*stages)
 print("Quadrature points:", quadrature.get_points())
 print("Quadrature weights:", quadrature.get_weights())
@@ -103,18 +84,24 @@ else:
     fname = "rsw_output"
 
 # Projected psi (rotation removed)
-psi_perp = fd.Function(Vcg, name="psi_perp") 
+psi_perp = fd.Function(Vcg, name="psi_perp")
 # Define f = z
 z_mode = fd.Function(Vcg, name="zmode")
 z_mode.interpolate(z)
-
 
 outfile = fd.VTKFile(f"{fname}_{suffix}.pvd")
 
 # Vorticity (scalar) on DG space
 vorticity = fd.Function(Q, name="vorticity")
-# compute initial vorticity from the current velocity field and write outputs
 vorticity.interpolate(fd.div(perp(Us[0])))
+
+# Rename fields for ParaView — BEFORE first write
+Us[0].rename("velocity")
+Us[1].rename("F")
+Us[2].rename("D")
+eta.rename("eta")
+
+# First write with renamed fields
 outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
 
 # Before using CheckpointFile
@@ -122,20 +109,17 @@ checkpoint_dir = "../RSW_checkpoint/new_RSW_checkpoint"
 os.makedirs(checkpoint_dir, exist_ok=True)
 
 t_checkpoint = tmax
-
 tol = 1e-10
 
-u_checkpoint = fd.Function(V, name="velocity")
-D_checkpoint = fd.Function(Q, name="depth")
+u_checkpoint = fd.Function(V, name="velocity_chk")
+D_checkpoint = fd.Function(Q, name="depth_chk")
 
 dcount = 0
 itcount = 0.0
 energy_errs = []
 
-# checkpoint for convergence
-nstep = args.nsteps  # or use any variable representing your step count
-#nrefs = args.ref_level
-
+nstep = args.nsteps
+nrefs = args.ref_level
 
 for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     count = 0
@@ -143,7 +127,7 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
         for dim in range(3):
             stagess[count].assign(Us[dim])
             count += 1
-    # setup noise 
+    # setup noise
     dW.assign(rg.normal(W_F, 0.0, 1.0))
     wsolver1.solve()
     wsolver2.solve()
@@ -162,11 +146,11 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     print('aftter projection', fd.norm(psi_perp))
     # Verify
     check = fd.assemble(psi_perp * z_mode * dx)
-    print("<psi_perp, z_mode> =", check) 
+    print("<psi_perp, z_mode> =", check)
     noise_proj_solver.solve()
     # advancing stepper
     stepper.advance()
-    itcount += stepper.solver.snes.getLinearSolveIterations()  
+    itcount += stepper.solver.snes.getLinearSolveIterations()
     denergy = (fd.assemble(energy)-energy0)/energy0
     denergy0 = (fd.assemble(energy))
     print(denergy0)
@@ -187,29 +171,24 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
         print("dU_3 norm:", fd.norm(dU_3))
         print("psi_noise norm:", fd.norm(psi_noise))
 
-
         print("noise u norm:", fd.norm(u_noise))
         print("velocity norm:", fd.norm(Us[0]))
         print("ratio:", fd.norm(u_noise)/fd.norm(Us[0]))
 
-
+        # compute depth and vorticity
         eta.interpolate(D - H + b)
-        # compute and write vorticity as scalar field
         vorticity.interpolate(fd.div(perp(Us[0])))
         outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
 
-# # do the checkpointing
-# with fd.CheckpointFile(f"{checkpoint_dir}/velocity_timestepping_{nrefs}.h5", 'w') as afile:
-#     print("Saving mesh...")
-#     afile.save_mesh(mesh)
-#     #if abs(t0 - t_checkpoint) < tol:
-#     print("Saving u_checkpoint and D_checkpoint at t0 =", t0)
-#     u_checkpoint.interpolate(u)
-#     D_checkpoint.interpolate(D-H+b)
-#     afile.save_function(u_checkpoint)
-#     afile.save_function(D_checkpoint)
-        
+# do the checkpointing
+with fd.CheckpointFile(f"{checkpoint_dir}/velocity_timestepping_{nrefs}.h5", 'w') as afile:
+    print("Saving mesh...")
+    afile.save_mesh(mesh)
+    print("Saving u_checkpoint and D_checkpoint at t0 =", t0)
+    u_checkpoint.interpolate(u)
+    D_checkpoint.interpolate(D-H+b)
+    afile.save_function(u_checkpoint)
+    afile.save_function(D_checkpoint)
 
 print('Total linear iterations', itcount)
-
 print('Average linear iterations', itcount/(args.nsteps))
