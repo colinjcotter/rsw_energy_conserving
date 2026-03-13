@@ -44,7 +44,7 @@ solver_parameters = sparameters
 
 stages = args.time_degree
 
-scheme = GalerkinCollocationScheme(order=stages, quadrature_degree=2*stages)
+scheme = ContinuousPetrovGalerkinScheme(order=stages, quadrature_degree=2*stages)
 
 print(type(eqn))
 print(type(scheme))
@@ -53,13 +53,10 @@ print(type(dT), dT)
 print(type(U))
 print("stages =", stages, type(stages))
 
+
 stepper = GalerkinTimeStepper(eqn, scheme, t, dT, U,
                               solver_parameters=solver_parameters)
 
-quadrature = create_time_quadrature(2*stages)
-print("Quadrature points:", quadrature.get_points())
-print("Quadrature weights:", quadrature.get_weights())
-print("Number of stages:", stages)
 
 Us = U.subfunctions
 stagess = stepper.stages.subfunctions
@@ -89,7 +86,7 @@ psi_perp = fd.Function(Vcg, name="psi_perp")
 z_mode = fd.Function(Vcg, name="zmode")
 z_mode.interpolate(z)
 
-outfile = fd.VTKFile(f"{fname}_{suffix}.pvd")
+# outfile = fd.VTKFile(f"{fname}_{suffix}.pvd")
 
 # Vorticity (scalar) on DG space
 vorticity = fd.Function(Q, name="vorticity")
@@ -102,7 +99,7 @@ Us[2].rename("D")
 eta.rename("eta")
 
 # First write with renamed fields
-outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
+# outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
 
 # Before using CheckpointFile
 checkpoint_dir = "../RSW_checkpoint/new_RSW_checkpoint"
@@ -178,7 +175,7 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
         # compute depth and vorticity
         eta.interpolate(D - H + b)
         vorticity.interpolate(fd.div(perp(Us[0])))
-        outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
+        # outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
 
 # do the checkpointing
 with fd.CheckpointFile(f"{checkpoint_dir}/velocity_timestepping_{nrefs}.h5", 'w') as afile:

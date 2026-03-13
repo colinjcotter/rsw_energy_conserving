@@ -4,7 +4,8 @@ from petsc4py import PETSc
 from firedrake.__future__ import interpolate
 from irksome import Dt, MeshConstant, TimeStepper
 from irksome.galerkin_stepper import ContinuousPetrovGalerkinTimeStepper as GalerkinTimeStepper
-from irksome.scheme import GalerkinCollocationScheme, create_time_quadrature
+#from irksome.scheme import GalerkinCollocationScheme, create_time_quadrature
+from irksome.scheme import ContinuousPetrovGalerkinScheme
 
 import argparse
 import numpy as np
@@ -27,11 +28,11 @@ args = parser.parse_known_args()
 args = args[0]
 
 # current test run
-args.ref_level = 5          # default: 5
-args.tmax = 100000          # default: 1296000 (15 days)
+args.ref_level = 3          # default: 5
+args.tmax = 1000000          # default: 1296000 (15 days)
 args.nsteps = 1000          # default: 1000
 args.coords_degree = 2      # default: 1
-args.SFLT = True            # default: False
+args.SFLT = False           # default: False
 
 tmax = args.tmax
 

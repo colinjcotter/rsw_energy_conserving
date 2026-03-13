@@ -62,7 +62,7 @@ dU_3 = fd.Function(Vcg)
 noise_scale = fd.Constant(1e8)
 
 
-nu  = 1.0
+nu  = 2.0
 lam = 5.0e5         # meters, e.g. ~5*h_avg
 kappa = (8.0*nu)**0.5 / lam
 kappa_inv_sq = fd.Constant(1.0/(kappa**2))  # = lam**2/(8*nu)
@@ -117,11 +117,14 @@ else:
     Upwind = 0.5 * (sign(fd.dot(u, n)) + 1)
 # advection term
 if args.SFLT:
-    # SFLT noise terms only
+    # Standard advection terms 
+    eqn -= inner(perp(grad(inner(du, perp(ubar)))), u)*dx
+    eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*u))*dS
+    # additional SFLT noise terms
     eqn -= inner(perp(grad(inner(du, perp(ubar)))), (1/dT)**0.5*noise_scale*perp(grad(psi_noise)))*dx
     eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*((1/dT)**0.5*noise_scale*perp(grad(psi_noise)))))*dS
 else:
-    # Standard advection terms only
+    # Standard advection terms
     eqn -= inner(perp(grad(inner(du, perp(ubar)))), u)*dx
     eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*u))*dS
 f = 2*Omega*z/MC.Constant(R0)  # Coriolis parameter
