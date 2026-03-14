@@ -46,14 +46,6 @@ stages = args.time_degree
 
 scheme = ContinuousPetrovGalerkinScheme(order=stages, quadrature_degree=2*stages)
 
-print(type(eqn))
-print(type(scheme))
-print(type(t), t)
-print(type(dT), dT)
-print(type(U))
-print("stages =", stages, type(stages))
-
-
 stepper = GalerkinTimeStepper(eqn, scheme, t, dT, U,
                               solver_parameters=solver_parameters)
 
@@ -86,7 +78,7 @@ psi_perp = fd.Function(Vcg, name="psi_perp")
 z_mode = fd.Function(Vcg, name="zmode")
 z_mode.interpolate(z)
 
-# outfile = fd.VTKFile(f"{fname}_{suffix}.pvd")
+outfile = fd.VTKFile(f"{fname}_{suffix}.pvd")
 
 # Vorticity (scalar) on DG space
 vorticity = fd.Function(Q, name="vorticity")
@@ -99,7 +91,7 @@ Us[2].rename("D")
 eta.rename("eta")
 
 # First write with renamed fields
-# outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
+outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
 
 # Before using CheckpointFile
 checkpoint_dir = "../RSW_checkpoint/new_RSW_checkpoint"
@@ -153,11 +145,11 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
     print(denergy0)
     energy_errs.append(denergy)
     if testcase == 5:
-        np.savetxt(f"w5_energy_errors_{suffix}.txt", energy_errs)
+        np.savetxt(f"w5_energy_errors_{suffix}_{nrefs}.txt", energy_errs)
     elif testcase == 6:
-        np.savetxt(f"w6_energy_errors_{suffix}.txt", energy_errs)
+        np.savetxt(f"w6_energy_errors_{suffix}_{nrefs}.txt", energy_errs)
     else:
-        np.savetxt(f"rsw_energy_errors_{suffix}.txt", energy_errs)
+        np.savetxt(f"rsw_energy_errors_{suffix}_{nrefs}.txt", energy_errs)
     # advance time
     t0 += dt
     t.assign(t0)
@@ -175,7 +167,7 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
         # compute depth and vorticity
         eta.interpolate(D - H + b)
         vorticity.interpolate(fd.div(perp(Us[0])))
-        # outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
+        outfile.write(*(Us[i] for i in range(3)), eta, psi_noise, psi_perp, u_noise, vorticity)
 
 # do the checkpointing
 with fd.CheckpointFile(f"{checkpoint_dir}/velocity_timestepping_{nrefs}.h5", 'w') as afile:
