@@ -4,14 +4,14 @@ from petsc4py import PETSc
 from firedrake.__future__ import interpolate
 from irksome import Dt, MeshConstant, TimeStepper
 from irksome.galerkin_stepper import ContinuousPetrovGalerkinTimeStepper as GalerkinTimeStepper
-#from irksome.scheme import GalerkinCollocationScheme, create_time_quadrature
-from irksome.scheme import ContinuousPetrovGalerkinScheme
+from irksome.scheme import GalerkinCollocationScheme, create_time_quadrature
 
 import argparse
 import numpy as np
 
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
 parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
+parser.add_argument('--ref_level_fine', type=int, default=5, help='Finest ref level used as noise reference. Default 5.')
 parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
 parser.add_argument('--ndumps', type=int, default=10, help='Timesteps per dump. Default 10.')
 parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
@@ -28,11 +28,13 @@ args = parser.parse_known_args()
 args = args[0]
 
 # current test run
-args.ref_level = 3          # default: 5
-args.tmax = 1000000          # default: 1296000 (15 days)
-args.nsteps = 1000          # default: 1000
-args.coords_degree = 2      # default: 1
-args.SFLT = False           # default: False
+args.ref_level = 2         # default: 5
+args.ref_level_fine = 6   # finest ref level for noise checkpoint
+args.tmax = 10000           # default: 1296000 (15 days)
+args.nsteps = 100          # default: 1000
+args.coords_degree = 1      # default: 1
+args.SFLT = False                   # default: False
+args.degree = 1          # default: 1
 
 tmax = args.tmax
 

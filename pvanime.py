@@ -46,7 +46,7 @@ for field in fields_to_render:
 
     count = 0
     for i, t in enumerate(timesteps):
-        if i % 5 == 0:
+        if i % 1 == 0:
             GetAnimationScene().AnimationTime = t
             Render()
             SaveScreenshot(f"frames/{field}/{field}_{count:04d}.png", view)
@@ -58,7 +58,7 @@ for field in fields_to_render:
 print("Converting to videos...")
 for field in fields_to_render:
     subprocess.run([
-        'ffmpeg', '-y', '-framerate', '5',
+        'ffmpeg', '-y', '-framerate', '1',
         '-i', f'frames/{field}/{field}_%04d.png',
         '-c:v', 'libx264', '-crf', '20',
         f'{field}.mp4'
