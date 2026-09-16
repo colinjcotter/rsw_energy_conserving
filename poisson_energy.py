@@ -95,7 +95,7 @@ eta.interpolate(D - H + b)
 
 qsolver.solve()
 
-outfile = fd.VTKFile(filename+".pvd")
+outfile = fd.VTKFile(args.filename+".pvd")
 outfile.write(*(Us[i] for i in range(3)), eta, qn)
 
 dcount = 0
