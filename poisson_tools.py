@@ -50,7 +50,7 @@ h_cell = fd.CellSize(mesh)
 sp = {"ksp_type": "cg", "pc_type": "lu",
         "pc_factor_mat_solver_type": "mumps"}
 
-Vcg = fd.FunctionSpace(mesh, "CG", 3)  
+Vcg = fd.FunctionSpace(mesh, "CG", 2)  
 W_F = fd.FunctionSpace(mesh, "DG", 0)
 dW = fd.Function(W_F)
 dW_phi = fd.TestFunction(Vcg)
@@ -58,12 +58,12 @@ dU = fd.TrialFunction(Vcg)
 #kappa_inv_sq = fd.Constant((h/10)**2)
 dU_1 = fd.Function(Vcg)
 dU_2 = fd.Function(Vcg)
-dU_3 = fd.Function(Vcg)
-noise_scale = fd.Constant(1e8)
+dU_3 = fd.Function(Vcg, name="dU_3")
+noise_scale = fd.Constant(args.noise_scale)   # default 3.8e7 (~10% for W6); override via --noise_scale
 
 
 nu  = 1.0
-lam = 5.0e5         # meters, e.g. ~5*h_avg
+lam = args.lam      # meters; correlation length from CLI (--lam). default 1e6 (small-scale).
 kappa = (8.0*nu)**0.5 / lam
 kappa_inv_sq = fd.Constant(1.0/(kappa**2))  # = lam**2/(8*nu)
 
@@ -105,7 +105,7 @@ lu_parameters = {
     'pc_factor_mat_solver_type': 'mumps'
 }
 
-noise_proj_eq = inner(u_noise - noise_scale*perp(grad(psi_noise)), noise_test)*dx
+noise_proj_eq = inner(u_noise - noise_scale*perp(grad(psi_noise))/D, noise_test)*dx
 noise_proj_prob = fd.NonlinearVariationalProblem(noise_proj_eq, u_noise)
 noise_proj_solver = fd.NonlinearVariationalSolver(noise_proj_prob, solver_parameters=lu_parameters)
 
@@ -117,9 +117,18 @@ else:
     Upwind = 0.5 * (sign(fd.dot(u, n)) + 1)
 # advection term
 if args.SFLT:
+    Theta = (1/dT)**0.5*noise_scale*perp(grad(psi_noise))
+    # Standard advection terms only
+    eqn -= inner(perp(grad(inner(du, perp(ubar)))), u)*dx
+    eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*u))*dS
     # SFLT noise terms only
-    eqn -= inner(perp(grad(inner(du, perp(ubar)))), (1/dT)**0.5*noise_scale*perp(grad(psi_noise)))*dx
-    eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*((1/dT)**0.5*noise_scale*perp(grad(psi_noise)))))*dS
+    eqn -= inner(perp(grad(inner(du, perp(ubar)))), Theta/D)*dx
+    eqn += inner(both(perp(n)*inner(du, perp(ubar))), both(Upwind*Theta/D))*dS
+    # Terms B and C (from dB div(u) and grad(u . dB))
+    eqn -= inner(grad(inner(du, Theta)/D), ubar) * dx
+    eqn += inner(grad(inner(F,  Theta)/D), du/D) * dx
+    eqn += inner(both(n*inner(du, Theta)/D), fd.avg(ubar)) * dS
+    eqn -= inner(both(n*inner(F,  Theta)/D), fd.avg(du/D)) * dS
 else:
     # Standard advection terms only
     eqn -= inner(perp(grad(inner(du, perp(ubar)))), u)*dx

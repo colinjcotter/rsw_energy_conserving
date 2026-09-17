@@ -4,13 +4,14 @@ from petsc4py import PETSc
 from firedrake.__future__ import interpolate
 from irksome import Dt, MeshConstant, TimeStepper
 from irksome.galerkin_stepper import ContinuousPetrovGalerkinTimeStepper as GalerkinTimeStepper
-from irksome.scheme import GalerkinCollocationScheme, create_time_quadrature
+from irksome.scheme import ContinuousPetrovGalerkinScheme
 
 import argparse
 import numpy as np
 
 parser = argparse.ArgumentParser(description='Energy conserving SWE on the sphere.')
 parser.add_argument('--ref_level', type=int, default=5, help='Refinement level of icosahedral grid. Default 5.')
+parser.add_argument('--ref_level_fine', type=int, default=-1, help='Finest ref level used as noise reference. <0 = standalone (fresh noise on this mesh).')
 parser.add_argument('--tmax', type=float, default=1296000, help='Final time in seconds. Default 1296000 (15 days).')
 parser.add_argument('--ndumps', type=int, default=10, help='Timesteps per dump. Default 10.')
 parser.add_argument('--nsteps', type=int, default=1000, help='Number of steps, default 1000')
@@ -22,16 +23,29 @@ parser.add_argument('--time_degree', type=int, default=1, help='Degree of polyno
 parser.add_argument('--bdfm', action='store_true', help='Use the BDFM space.')
 parser.add_argument('--centred', action='store_true', help='If present, use the centred scheme for velocity advection in the curl term, otherwise use the upwind scheme.')
 parser.add_argument('--williamson', type=int, default=6, help='Williamson testcase number.')
+parser.add_argument('--save_noise', action='store_true', help='Save dW at each step')
+parser.add_argument('--load_noise', action='store_true', help='Load and sum saved dW')
+parser.add_argument('--noise_dir', type=str, default='./noise_checkpoints')
+parser.add_argument('--coarsening', type=int, default=1, help='Sum this many fine dW per step')
+parser.add_argument('--seed', type=int, default=987654321, help='Random seed for noise generation')
+parser.add_argument('--lam', type=float, default=1.0e6, help='Noise correlation length [m]. Default 1e6 (small-scale, for visualisation). Use larger (e.g. 6e6) so the noise is resolved on coarse meshes in spatial convergence.')
+parser.add_argument('--noise_scale', type=float, default=3.8e7, help='Noise amplitude. Default 3.8e7 (~10%% of u for W6, U~50). Slower cases (e.g. W5, U~20) need a smaller value for the same relative amplitude.')
+parser.add_argument('--diagnostics_every', type=int, default=0, help='If >0, write energy+Casimir+divergence CSV every N steps (Exp-1/2 long-time diagnostics). 0 = off (default behaviour).')
+parser.add_argument('--no_output', action='store_true', help='Skip VTK output to save disk space')
+parser.add_argument('--pure', action='store_true', help='Disable stochastic forcing')
 
 args = parser.parse_known_args()
 args = args[0]
 
 # current test run
-args.ref_level = 5          # default: 5
-args.tmax = 100000           # default: 1296000 (15 days)
-args.nsteps = 1000           # default: 1000
-args.coords_degree = 2      # default: 1
-args.SFLT = True                   # default: False
+if args.ref_level_fine < 0:            # standalone run: generate fresh noise on this mesh
+    args.ref_level_fine = args.ref_level
+# else: honour the CLI --ref_level_fine (convergence runs sharing noise across meshes)
+# args.tmax = 100000        # default: 1296000 (15 days) — uncomment to override
+args.SFLT = not args.pure          # enable stochastic forcing unless --pure passed
+# args.degree comes from CLI (--degree, default 1). Geometry one order higher so the
+# flat-cell perp does not cap velocity convergence (coords_degree = degree+1).
+args.coords_degree = args.degree + 1
 
 tmax = args.tmax
 
@@ -133,6 +147,27 @@ elif testcase == 6:
     C = (1 / 4) * K**2 * fd.cos(lat)**(2 * R) * ((R + 1)*fd.cos(lat)**2 - (R + 2))
     Dexpr = H0 + R0**2 * (A + B*fd.cos(lon*R) + C * fd.cos(2 * R * lon))/g
     D0.interpolate(Dexpr)
+elif testcase == 2:
+    # Läuter et al. (2005), Example 3: unsteady (precessing) solid-body rotation.
+    # Exact solution of the rotating SWE with centrifugal orography Phi_B = (Omega.x)^2/2.
+    alpha = fd.pi/4.0
+    u_0 = 2.0*fd.pi*R0/(12.0*24.0*3600.0)   # 2*pi*a/12 days  [m/s]
+    k1 = fd.Constant(133681.0)              # m^2/s^2
+    k2 = fd.Constant(0.0)
+    # precessing axis  phi_t(c),  c = -sin(alpha) e1 + cos(alpha) e3  (functions of the live t)
+    cx = -fd.sin(alpha)*fd.cos(Omega*t)
+    cy =  fd.sin(alpha)*fd.sin(Omega*t)
+    cz =  fd.cos(alpha)
+    cdotn = (cx*x + cy*y + cz*z)/R0
+    # exact time-dependent solution (UFL in t); reused for the IC and for the deviation/error
+    u_exact_expr = (u_0/R0)*fd.as_vector([cy*z - cz*y, cz*x - cx*z, cx*y - cy*x])
+    D_exact_expr = (-0.5*(u_0*cdotn + Omega*z)**2 + (k1 - k2))/g
+    # centrifugal orography  b = Phi_B/g = Omega^2 z^2 /(2 g) + k2/g
+    bexpr = Omega**2*z**2/(2.0*g) + k2/g
+    b.interpolate(bexpr)
+    # initial condition = exact solution at t = 0
+    u0.project(u_exact_expr)
+    D0.interpolate(D_exact_expr)
 else:
     raise NotImplementedError
 
