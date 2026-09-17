@@ -1,6 +1,29 @@
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+
+# Simulation outputs
+*_output_*/
+frames/
+*.pvd
+*.vtu
+*.pvtu
+*.h5
 *.mp4
 *.ogv
-*.pvd
+*.txt
+
+# Logs
 mpi_log/
-*.pyc
+*.log
+
+# Environment
+venv/
+.env
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store

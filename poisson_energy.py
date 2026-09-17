@@ -55,12 +55,6 @@ scheme = ContinuousPetrovGalerkinScheme(order=stages, quadrature_degree=2*stages
 stepper = GalerkinTimeStepper(eqn, scheme, t, dT, U,
                               solver_parameters=solver_parameters)
 
-
-# quadrature = create_time_quadrature(2*stages)
-# print("Quadrature points:", quadrature.get_points())
-# print("Quadrature weights:", quadrature.get_weights())
-# print("Number of stages:", stages)
-
 Us = U.subfunctions
 stagess = stepper.stages.subfunctions
 eta = fd.Function(Q)
