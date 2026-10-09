@@ -170,6 +170,7 @@ elif args.load_noise:
     fine_nsteps = args.nsteps * args.coarsening
     dW_time_chk = fd.CheckpointFile(os.path.join(args.noise_dir, f"dW_nsteps{fine_nsteps}_ref{nrefs}.h5"), 'r')
     mesh_dW = dW_time_chk.load_mesh("sphere" + str(nrefs))
+    dW_fine_tmp = fd.Function(W_F)
 
 # --- one-time noise sanity check (static: lambda/h ratio) ---
 if args.SFLT:
@@ -199,7 +200,8 @@ for step in fd.ProgressBar("Timestep").iter(range(args.nsteps)):
                 for k in range(args.coarsening):
                     fine_idx = step * args.coarsening + k
                     dW_fine_k = dW_time_chk.load_function(mesh_dW, "dW", idx=fine_idx)
-                    dW.dat.data[:] += dW_fine_k.dat.data_ro[:]
+                    dW_fine_tmp.interpolate(dW_fine_k)
+                    dW.dat.data[:] += dW_fine_tmp.dat.data_ro[:]
             else:
                 dW.assign(rg.normal(W_F, 0.0, 1.0))
             wsolver1.solve()
